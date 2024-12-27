@@ -1,0 +1,13 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@basementuniverse/asobi-server": "file:../../../server",
+    "@basementuniverse/utils": "^1.7.0",
+    "@basementuniverse/vec": "^2.1.0"
+  }
+}

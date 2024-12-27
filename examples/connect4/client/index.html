@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect4 Example</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="../../../client/build/client.js"></script>
+<style>
+
+.game {
+  margin: 10px;
+  padding: 10px;
+  border: 2px solid #333;
+  border-radius: 5px;
+}
+
+</style>
+<script>
+
+const { createApp } = Vue;
+
+const app = createApp({
+  data() {
+    return {
+      asobi: new AsobiClient({
+        jsonpadClientToken: '<YOUR JSONPAD CLIENT TOKEN>',
+        jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
+        asobiServerUrl: 'http://localhost:3000',
+      }),
+      games: [],
+    };
+  },
+
+  async created() {
+    this.loadGames();
+
+    this.asobi.addEventListener('game-started', e => {
+      this.games.unshift(e.detail);
+    });
+
+    this.asobi.addEventListener('player-joined', e => {
+      const found = this.games.findIndex(g => g.id === e.detail.id);
+      if (found !== -1) {
+        this.games[found] = e.detail;
+      } else {
+        this.games.unshift(e.detail);
+      }
+    });
+
+    this.asobi.addEventListener('player-moved', e => {
+      const found = this.games.findIndex(g => g.id === e.detail.id);
+      if (found !== -1) {
+        this.games[found] = e.detail;
+      } else {
+        this.games.unshift(e.detail);
+      }
+    });
+
+    this.asobi.addEventListener('game-finished', e => {
+      const found = this.games.findIndex(g => g.id === e.detail.id);
+      if (found !== -1) {
+        this.games[found] = e.detail;
+      } else {
+        this.games.unshift(e.detail);
+      }
+    });
+  },
+
+  methods: {
+    async loadGames() {
+      try {
+        const response = await this.asobi.fetchGames(
+          {
+            page: 1,
+            limit: 10,
+            order: 'started',
+            direction: 'desc',
+          }
+        );
+        this.games = response.games;
+      } catch (error) {
+        console.error('Error loading games:', error);
+      }
+    },
+
+    async startGame() {
+      try {
+        const [game, token] = await this.asobi.startGame('Player 1');
+
+        setTimeout(() => {
+          window
+            .open(`play.html?id=${game.id}&token=${token}&name=Player%201`, '_blank')
+            .focus();
+        }, 500);
+      } catch (error) {
+        console.error('Error starting game:', error);
+      }
+    },
+
+    async joinGame(id) {
+      try {
+        const [game, token] = await this.asobi.joinGame(id, 'Player 2');
+
+        setTimeout(() => {
+          window
+            .open(`play.html?id=${game.id}&token=${token}&name=Player%202`, '_blank')
+            .focus();
+        }, 500);
+      } catch (error) {
+        console.error('Error starting game:', error);
+      }
+    },
+  },
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  app.mount('#app');
+});
+
+</script>
+</head>
+<body>
+  <div id="app">
+    <h1>Connect 4</h1>
+    <button @click="startGame()" >Start new game</button>
+
+    <!-- Games List -->
+    <div v-for="game in games" :key="game.id" class="game">
+      <h3>{{ game.id }}</h3>
+      <p>{{ game.status }} - {{ game.startedAt }}</p>
+      <button v-if="game.status === 'waiting_to_start'" @click="joinGame(game.id)">
+        Join this game
+      </button>
+    </div>
+  </div>
+</body>
+</html>

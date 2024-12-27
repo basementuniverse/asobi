@@ -30,15 +30,29 @@ const server = new AsobiServer({
   hooks: {
     startGame: async (game: Game): Promise<Game> => {
       // Initialize game state here...
-      return gameData;
+
+      // lastEventType will be 'game-started'
+      // lastEventData will be set to null
+
+      return game;
     },
     joinGame: async (game: Game, player: Player): Promise<Game> => {
       // Handle player joined here...
-      return gameData;
+
+      // lastEventType will be 'player-joined'
+      // lastEventData will be set to the player object
+
+      return game;
     },
     move: async (game: Game, player: Player, move: Move): Promise<Game> => {
       // Handle player move and update game state accordingly here...
-      return gameData;
+
+      // lastEventType will be 'player-moved'
+      // lastEventData will be reset to null before this hook is called
+      // then, after this hook returns, the move object will be merged into lastEventData
+      // this means we can customize the lastEventData object in this hook
+
+      return game;
     },
   },
 });

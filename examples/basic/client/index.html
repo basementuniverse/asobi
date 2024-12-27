@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Basic Example</title>
+<script src="../../../client/build/client.js"></script>
+<script>
+
+// Create a new client instance...
+const client = new AsobiClient({
+  jsonpadClientToken: '<YOUR JSONPAD CLIENT TOKEN>',
+  jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
+  asobiServerUrl: 'http://localhost:3000',
+});
+
+// Fetch a page of games from the server
+function fetchGames() {
+  client.fetchGames().then(games => {
+    console.log('Games:', games);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Start a new game with you as Player 1
+function startGame() {
+  client.startGame('Player 1').then(([game, token]) => {
+    console.log('Token:', token);
+    console.log('Game:', game);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Join an existing game with you as Player 2
+function joinGame(id) {
+  client.joinGame(id, 'Player 2').then(([game, token]) => {
+    console.log('Token:', token);
+    console.log('Game:', game);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Make a move in a game
+// We need to pass in a game id (this is the game in which the move will be made)
+// and a token (as returned from startGame or joinGame; this will identify and
+// authenticate the player making the move)
+function move(id, token) {
+  client.move(id, token).then(game => {
+    console.log('Game:', game);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Handle various game life-cycle events...
+
+client.addEventListener('game-started', event => {
+  console.log('Game started:', event.detail);
+});
+
+client.addEventListener('game-finished', event => {
+  console.log('Game finished:', event.detail);
+});
+
+client.addEventListener('player-joined', event => {
+  console.log('Player joined:', event.detail);
+});
+
+client.addEventListener('player-moved', event => {
+  console.log('Player moved:', event.detail);
+});
+
+</script>
+</head>
+<body>
+  <p>Open the console (F12)</p>
+  <ul>
+    <li><code>fetchGames()</code> will fetch a list of games</li>
+    <li><code>startGame()</code> will start a new game with you as Player 1, and will return a token that you can use to make moves</li>
+    <li><code>joinGame(id)</code> will join an existing game with you as Player 2, and will return a token that you can use to make moves</li>
+    <li><code>move(id, token)</code> will make a move in a game using the token you received when you started or joined the game</li>
+  </ul>
+</body>
+</html>

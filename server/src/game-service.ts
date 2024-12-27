@@ -275,6 +275,7 @@ export default class GameService {
       data: moveData,
     };
     game.moves.push(move);
+    game.lastEventData = null;
 
     // Call move hook if one is defined
     game = (await server.options.hooks?.move?.(game, player, move)) ?? game;
@@ -335,7 +336,10 @@ export default class GameService {
 
         // @ts-ignore
         lastEventType,
-        lastEventData: move,
+        lastEventData: {
+          ...move,
+          ...(game.lastEventData ?? {}),
+        },
       })
     );
 

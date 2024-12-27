@@ -216,7 +216,7 @@ class GameService {
      * Make a move in an existing game
      */
     static async move(server, game, token, moveData) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d;
         // Check if the game is running
         if (game.status !== types_1.GameStatus.STARTED) {
             throw new error_1.default('Game is not running', 403);
@@ -237,6 +237,7 @@ class GameService {
             data: moveData,
         };
         game.moves.push(move);
+        game.lastEventData = null;
         // Call move hook if one is defined
         game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.move) === null || _b === void 0 ? void 0 : _b.call(_a, game, player, move)))) !== null && _c !== void 0 ? _c : game;
         // Check if the game has been completed
@@ -276,7 +277,10 @@ class GameService {
             ...game,
             // @ts-ignore
             lastEventType,
-            lastEventData: move,
+            lastEventData: {
+                ...move,
+                ...((_d = game.lastEventData) !== null && _d !== void 0 ? _d : {}),
+            },
         }));
         return this.dataToGame(updatedGameItem.id, updatedGameItem.data);
     }

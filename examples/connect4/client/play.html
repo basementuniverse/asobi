@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect4 Example</title>
+<script src="../../../client/build/client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/vec@2.1.0/vec.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/utils@1.7.0/utils.min.js"></script>
+<style>
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+}
+
+canvas {
+  width: 350px;
+  height: 300px;
+  border: 2px solid #333;
+  border-radius: 5px;
+}
+
+</style>
+<script>
+
+const CANVAS_WIDTH = 350;
+const CANVAS_HEIGHT = 300;
+
+const DEFAULT_BOARD_WIDTH = 7;
+const DEFAULT_BOARD_HEIGHT = 6;
+
+let canvas;
+let context;
+let message;
+
+let currentGame;
+let currentToken;
+let currentName;
+
+const client = new AsobiClient({
+  jsonpadClientToken: '<YOUR JSONPAD SERVER TOKEN>',
+  jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
+  asobiServerUrl: 'http://localhost:3000',
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  canvas = document.getElementById('game');
+  context = canvas.getContext('2d');
+
+  message = document.getElementById('message');
+
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+
+  draw(context);
+
+  const queryString = window.location.search;
+
+  if (!queryString) {
+    console.error('Missing parameters');
+    return;
+  }
+
+  const urlParams = new URLSearchParams(queryString);
+
+  if (
+    !urlParams.has('id') ||
+    !urlParams.has('token') ||
+    !urlParams.has('name')
+  ) {
+    console.error('Missing parameters');
+    return;
+  }
+
+  currentToken = urlParams.get('token');
+  currentName = urlParams.get('name');
+
+  // Fetch the game
+  client.fetchGame(urlParams.get('id')).then(game => {
+    if (!game) {
+      console.error('Game not found');
+      return;
+    }
+
+    currentGame = game;
+
+    if (currentGame.status !== 'started') {
+      console.error('Game not in valid state: ', currentGame.status);
+      return;
+    }
+
+    let currentPlayerName = currentGame.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === currentName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+
+    message.innerText = `It\'s ${currentPlayerName} turn.`;
+    draw(context, currentGame.state);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+
+  // The game started
+  client.addEventListener('game-started', event => {
+    if (!currentGame) {
+      return;
+    }
+
+    if (event.detail.id !== currentGame.id) {
+      return;
+    }
+
+    console.log('Game started:', event.detail);
+
+    currentGame = event.detail;
+
+    let currentPlayerName = currentGame.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === currentName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+
+    message.innerText = `Game started! It's ${currentPlayerName} turn.`;
+    draw(context, currentGame.state);
+  });
+
+  // The game finished
+  client.addEventListener('game-finished', event => {
+    if (!currentGame) {
+      return;
+    }
+
+    if (event.detail.id !== currentGame.id) {
+      return;
+    }
+
+    console.log('Game finished:', event.detail);
+
+    currentGame = event.detail;
+
+    let winningPlayerName = currentGame.players.find(
+      p => p.id === currentGame.state.winner
+    )?.name ?? 'Unknown';
+    if (winningPlayerName === currentName) {
+      winningPlayerName = 'You';
+    }
+
+    message.innerText = `Game finished! ${winningPlayerName} won.`;
+    draw(context, currentGame.state);
+  });
+
+  // A player joined the game
+  client.addEventListener('player-joined', event => {
+    if (!currentGame) {
+      return;
+    }
+
+    if (event.detail.id !== currentGame.id) {
+      return;
+    }
+
+    console.log('Player joined:', event.detail);
+
+    currentGame = event.detail;
+
+    let currentPlayerName = currentGame.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === currentName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+
+    message.innerText = `A player joined the game! It\'s ${currentPlayerName} turn.`;
+    draw(context, currentGame.state);
+  });
+
+  // A player made a move
+  client.addEventListener('player-moved', event => {
+    if (!currentGame) {
+      return;
+    }
+
+    if (event.detail.id !== currentGame.id) {
+      return;
+    }
+
+    console.log('Player moved:', event.detail);
+
+    currentGame = event.detail;
+
+    let currentPlayerName = currentGame.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === currentName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+
+    message.innerText = `It\'s ${currentPlayerName} turn.`;
+
+    animateMove(
+      context,
+      currentGame.state,
+      vec2(
+        event.detail.lastEventData.column,
+        event.detail.lastEventData.row
+      )
+    );
+  });
+
+  canvas.addEventListener('click', event => {
+    if (!currentGame) {
+      return;
+    }
+
+    if (currentGame.status !== 'started') {
+      return;
+    }
+
+    const x = Math.floor(event.offsetX / (CANVAS_WIDTH / currentGame.state.width));
+
+    client.move(
+      currentGame.id,
+      currentToken,
+      {
+        column: x,
+      }
+    ).then(game => {}).catch(error => {
+      console.error('Error:', error);
+    });
+  });
+});
+
+function animateMove(context, state, move) {
+  const duration = 500;
+  const start = performance.now();
+
+  function step() {
+    const elapsed = performance.now() - start;
+    const progress = Math.min(elapsed / duration, 1);
+
+    draw(context, state, move, clamp(progress, 0, 1));
+
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    }
+  }
+
+  requestAnimationFrame(step);
+}
+
+function draw(context, state, dropping = null, dropProgress = 0) {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.save();
+
+  const width = state?.width || DEFAULT_BOARD_WIDTH;
+  const height = state?.height || DEFAULT_BOARD_HEIGHT;
+
+  const cellWidth = CANVAS_WIDTH / width;
+  const cellHeight = CANVAS_HEIGHT / height;
+
+  // Grid
+  context.strokeStyle = '#999';
+  context.lineWidth = 2;
+  for (let x = 0; x < width; x++) {
+    line(context, vec2(x * cellWidth, 0), vec2(x * cellWidth, CANVAS_HEIGHT));
+  }
+  for (let y = 0; y < height; y++) {
+    line(context, vec2(0, y * cellHeight), vec2(CANVAS_WIDTH, y * cellHeight));
+  }
+
+  // Counters
+  if (state) {
+    for (let x = 0; x < width; x++) {
+      for (let y = 0; y < height; y++) {
+        const counter = state.board[ind(x, y, width)];
+        if (counter === null) {
+          continue;
+        }
+
+        if (dropping !== null && dropping.x === x && dropping.y === y) {
+          circle(
+            context,
+            vec2(
+              x * cellWidth + cellWidth / 2,
+              lerp(-cellHeight * 1.5, y * cellHeight + cellHeight / 2, dropProgress)
+            ),
+            Math.min(cellWidth, cellHeight) / 2 - 10,
+            counter
+          );
+
+          continue;
+        }
+
+        circle(
+          context,
+          vec2(
+            x * cellWidth + cellWidth / 2,
+            y * cellHeight + cellHeight / 2
+          ),
+          Math.min(cellWidth, cellHeight) / 2 - 10,
+          counter
+        );
+      }
+    }
+  }
+  context.restore();
+}
+
+function line(context, a, b) {
+  context.beginPath();
+  context.moveTo(a.x, a.y);
+  context.lineTo(b.x, b.y);
+  context.stroke();
+}
+
+function circle(context, position, radius, color) {
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(position.x, position.y, radius, 0, Math.PI * 2);
+  context.fill();
+}
+
+</script>
+</head>
+<body>
+  <div class="container">
+    <div id="message"></div>
+    <canvas id="game"></canvas>
+  </div>
+</body>
+</html>
