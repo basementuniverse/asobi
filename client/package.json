@@ -2,12 +2,20 @@
   "name": "@basementuniverse/asobi-client",
   "version": "1.0.0",
   "description": "A multiplayer turn-based game client",
+  "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
+  "license": "MIT",
+  "homepage": "https://github.com/basementuniverse/asobi#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/basementuniverse/asobi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/basementuniverse/asobi/issues"
+  },
   "main": "build/client.js",
   "scripts": {
     "build": "webpack"
   },
-  "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
-  "license": "MIT",
   "dependencies": {
     "@basementuniverse/jsonpad-realtime-sdk": "^1.2.1",
     "@basementuniverse/jsonpad-sdk": "^1.6.2"

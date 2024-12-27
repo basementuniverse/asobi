@@ -2,13 +2,22 @@
   "name": "@basementuniverse/asobi-server",
   "version": "1.0.0",
   "description": "A multiplayer turn-based game server",
+  "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
+  "license": "MIT",
+  "homepage": "https://github.com/basementuniverse/asobi#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/basementuniverse/asobi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/basementuniverse/asobi/issues"
+  },
   "main": "build/index.js",
+  "types": "build/index.d.ts",
   "scripts": {
     "clean": "rm -rf build",
     "build": "npm run clean && tsc"
   },
-  "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
-  "license": "MIT",
   "dependencies": {
     "@basementuniverse/jsonpad-sdk": "^1.6.2",
     "@basementuniverse/utils": "^1.7.0",
