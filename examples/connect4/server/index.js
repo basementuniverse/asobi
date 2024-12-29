@@ -2,9 +2,9 @@ const { AsobiServer } = require('@basementuniverse/asobi-server');
 const { range, ind } = require('@basementuniverse/utils');
 const { vec2 } = require('@basementuniverse/vec');
 
-const JSONPAD_SERVER_TOKEN = 'JsEw7T4PPkg/GHxc00oS5KclByhokjgj';//'<YOUR JSONPAD SERVER TOKEN>';
-const JSONPAD_GAMES_LIST = 'asobi-connect4-example-games';//'<YOUR JSONPAD GAMES LIST PATH NAME>';
-const JSONPAD_PLAYERS_LIST = 'asobi-players';//'<YOUR JSONPAD PLAYERS LIST PATH NAME>';
+const JSONPAD_SERVER_TOKEN = '<YOUR JSONPAD SERVER TOKEN>';
+const JSONPAD_GAMES_LIST = '<YOUR JSONPAD GAMES LIST PATH NAME>';
+const JSONPAD_PLAYERS_LIST = '<YOUR JSONPAD PLAYERS LIST PATH NAME>';
 
 const DEFAULT_WIDTH = 7;
 const DEFAULT_HEIGHT = 6;
