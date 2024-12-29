@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const async_1 = require("@basementuniverse/async");
 const utils_1 = require("@basementuniverse/utils");
 const crypto = __importStar(require("crypto"));
 const uuid_1 = require("uuid");
@@ -47,21 +48,51 @@ class GameService {
     /**
      * Generate and cache a player token
      */
-    static addToken(gameId, playerId) {
+    static async addToken(server, gameId, playerId) {
         const token = this.generateToken();
-        PLAYER_TOKENS[playerId] = {
-            gameId,
-            token,
-        };
+        if (server.options.jsonpadPlayersList !== null) {
+            await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
+                data: {
+                    playerId,
+                    gameId,
+                    token,
+                },
+            });
+        }
+        else {
+            PLAYER_TOKENS[playerId] = {
+                gameId,
+                token,
+            };
+        }
         return token;
     }
     /**
      * Remove a player token from the cache
      */
-    static removeToken(gameId, playerId) {
-        if (PLAYER_TOKENS[playerId] && PLAYER_TOKENS[playerId].gameId === gameId) {
+    static async removeToken(server, gameId, playerId) {
+        if (server.options.jsonpadPlayersList !== null) {
+            await server.jsonpad.deleteItem(server.options.jsonpadPlayersList, playerId);
+        }
+        else if (PLAYER_TOKENS[playerId] &&
+            PLAYER_TOKENS[playerId].gameId === gameId) {
             delete PLAYER_TOKENS[playerId];
         }
+    }
+    /**
+     * Check if a player token is valid
+     */
+    static async verifyToken(server, gameId, playerId, token) {
+        let playerToken;
+        if (server.options.jsonpadPlayersList !== null) {
+            playerToken = await server.jsonpad.fetchItemData(server.options.jsonpadPlayersList, playerId);
+        }
+        else {
+            playerToken = PLAYER_TOKENS[playerId];
+        }
+        return (playerToken &&
+            playerToken.gameId === gameId &&
+            playerToken.token === token);
     }
     /**
      * Generate a new token value
@@ -71,15 +102,6 @@ class GameService {
             .randomBytes(constants.TOKEN_LENGTH)
             .toString('hex')
             .slice(0, constants.TOKEN_LENGTH);
-    }
-    /**
-     * Check if a player token is valid
-     */
-    static verifyToken(gameId, playerId, token) {
-        const playerToken = PLAYER_TOKENS[playerId];
-        return (playerToken &&
-            playerToken.gameId === gameId &&
-            playerToken.token === token);
     }
     /**
      * Convert a game to serialisable data
@@ -168,7 +190,7 @@ class GameService {
             data: this.gameToData(game),
         });
         // Generate and cache a token for this player in this game
-        const token = this.addToken(createdGameItem.id, player.id);
+        const token = await this.addToken(server, createdGameItem.id, player.id);
         return [this.dataToGame(createdGameItem.id, createdGameItem.data), token];
     }
     /**
@@ -209,7 +231,7 @@ class GameService {
             lastEventData: player,
         }));
         // Generate and cache a token for this player in this game
-        const token = this.addToken(game.id, player.id);
+        const token = await this.addToken(server, game.id, player.id);
         return [this.dataToGame(updatedGameItem.id, updatedGameItem.data), token];
     }
     /**
@@ -222,7 +244,7 @@ class GameService {
             throw new error_1.default('Game is not running', 403);
         }
         // Find the player making the move
-        const player = game.players.find(p => this.verifyToken(game.id, p.id, token));
+        const player = await (0, async_1.asyncFind)(game.players, p => this.verifyToken(server, game.id, p.id, token));
         if (!player) {
             throw new error_1.default('Invalid player token', 403);
         }
@@ -248,7 +270,7 @@ class GameService {
             game.status = types_1.GameStatus.COMPLETED;
             game.finishedAt = new Date();
             // Invalidate all player tokens for this game
-            game.players.forEach(p => this.removeToken(game.id, p.id));
+            await (0, async_1.asyncForEach)(game.players, p => this.removeToken(server, game.id, p.id));
         }
         // Current player has finished their turn
         player.status = types_1.PlayerStatus.WAITING_FOR_TURN;

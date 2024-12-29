@@ -10,13 +10,13 @@ export default class GameService {
      */
     private static removeToken;
     /**
+     * Check if a player token is valid
+     */
+    static verifyToken(server: Server, gameId: string, playerId: string, token: string): Promise<boolean>;
+    /**
      * Generate a new token value
      */
     private static generateToken;
-    /**
-     * Check if a player token is valid
-     */
-    static verifyToken(gameId: string, playerId: string, token: string): boolean;
     /**
      * Convert a game to serialisable data
      */

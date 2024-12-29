@@ -100,6 +100,7 @@ exports.Server = Server;
 Server.defaultOptions = {
     jsonpadServerToken: '',
     jsonpadGamesList: '',
+    jsonpadPlayersList: null,
     minPlayers: 2,
     maxPlayers: 2,
     gameSchema: {

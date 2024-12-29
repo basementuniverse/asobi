@@ -28,6 +28,9 @@ canvas {
 </style>
 <script>
 
+const JSONPAD_CLIENT_TOKEN = '5bKsXdKdRFoA0csX9GwILLL11KS1npuU';//'<YOUR JSONPAD CLIENT TOKEN>';
+const JSONPAD_GAMES_LIST = 'asobi-connect4-example-games';//'<YOUR JSONPAD GAMES LIST PATH NAME>';
+
 const CANVAS_WIDTH = 350;
 const CANVAS_HEIGHT = 300;
 
@@ -43,8 +46,8 @@ let currentToken;
 let currentName;
 
 const client = new AsobiClient({
-  jsonpadClientToken: '<YOUR JSONPAD SERVER TOKEN>',
-  jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
+  jsonpadClientToken: JSONPAD_CLIENT_TOKEN,
+  jsonpadGamesList: JSONPAD_GAMES_LIST,
   asobiServerUrl: 'http://localhost:3000',
 });
 

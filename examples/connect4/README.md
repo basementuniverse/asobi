@@ -13,6 +13,8 @@ cd server
 npm install
 ```
 
+Paste JSONPad list path names and tokens into `client/index.html` and `server/index.js`.
+
 ## Running the game
 
 Run the server:

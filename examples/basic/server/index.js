@@ -6,8 +6,12 @@ const server = new AsobiServer({
   // Provide the server token (this allows the server to read and modify games)
   jsonpadServerToken: '<YOUR JSONPAD SERVER TOKEN>',
 
-  // Provide the path name of the JSONPad list which will store the games
+  // Provide the id or path name of the JSONPad list which will store the games
   jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
+
+  // Optionally provide the id or path name of the JSONPad list which will store player tokens
+  // (if this is not provided, the server will store tokens in memory)
+  jsonpadPlayersList: '<YOUR JSONPAD PLAYERS LIST PATH NAME>',
 
   // Define hooks that will be called at various points in the game's lifecycle
   hooks: {

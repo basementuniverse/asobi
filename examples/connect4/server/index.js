@@ -2,6 +2,10 @@ const { AsobiServer } = require('@basementuniverse/asobi-server');
 const { range, ind } = require('@basementuniverse/utils');
 const { vec2 } = require('@basementuniverse/vec');
 
+const JSONPAD_SERVER_TOKEN = 'JsEw7T4PPkg/GHxc00oS5KclByhokjgj';//'<YOUR JSONPAD SERVER TOKEN>';
+const JSONPAD_GAMES_LIST = 'asobi-connect4-example-games';//'<YOUR JSONPAD GAMES LIST PATH NAME>';
+const JSONPAD_PLAYERS_LIST = 'asobi-players';//'<YOUR JSONPAD PLAYERS LIST PATH NAME>';
+
 const DEFAULT_WIDTH = 7;
 const DEFAULT_HEIGHT = 6;
 const DEFAULT_WINNING_RUN = 4;
@@ -119,8 +123,9 @@ function checkWinAtPosition(board, width, height, winningRun, colour, position) 
 }
 
 const server = new AsobiServer({
-  jsonpadServerToken: '<YOUR JSONPAD SERVER TOKEN>',
-  jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
+  jsonpadServerToken: JSONPAD_SERVER_TOKEN,
+  jsonpadGamesList: JSONPAD_GAMES_LIST,
+  jsonpadPlayersList: JSONPAD_PLAYERS_LIST,
   hooks: {
     startGame: async (game, player) => {
       if (!game.state) {

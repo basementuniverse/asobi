@@ -1,6 +1,6 @@
 # Asobi - turn-based game framework
 
-Asobi is a game client/server framework that allows you to create multiplayer turn-based games with a simple API. It is designed to be easy to use and to allow you to focus on the game logic rather than the technical details of managing rounds, turns, realtime updates etc.
+Asobi is a game client/server framework that allows you to create multiplayer turn-based games with a simple API. It is designed to be easy to use and to allow you to focus on building the game logic instead of messing around with all the boilerplate for managing rounds, turns, realtime updates etc.
 
 There are 2 NPM packages in this repository:
 

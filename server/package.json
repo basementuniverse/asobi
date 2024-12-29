@@ -19,6 +19,7 @@
     "build": "npm run clean && tsc"
   },
   "dependencies": {
+    "@basementuniverse/async": "^1.1.0",
     "@basementuniverse/jsonpad-sdk": "^1.6.2",
     "@basementuniverse/utils": "^1.7.0",
     "cors": "^2.8.5",

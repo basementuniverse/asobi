@@ -12,6 +12,7 @@ export class Server {
   private static readonly defaultOptions: ServerOptions = {
     jsonpadServerToken: '',
     jsonpadGamesList: '',
+    jsonpadPlayersList: null,
     minPlayers: 2,
     maxPlayers: 2,
     gameSchema: {

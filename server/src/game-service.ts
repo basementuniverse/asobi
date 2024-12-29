@@ -1,3 +1,4 @@
+import { asyncFind, asyncForEach } from '@basementuniverse/async';
 import { clamp, exclude } from '@basementuniverse/utils';
 import * as crypto from 'crypto';
 import { v4 as uuid } from 'uuid';
@@ -18,12 +19,27 @@ export default class GameService {
   /**
    * Generate and cache a player token
    */
-  private static addToken(gameId: string, playerId: string): string {
+  private static async addToken(
+    server: Server,
+    gameId: string,
+    playerId: string
+  ): Promise<string> {
     const token = this.generateToken();
-    PLAYER_TOKENS[playerId] = {
-      gameId,
-      token,
-    };
+
+    if (server.options.jsonpadPlayersList !== null) {
+      await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
+        data: {
+          playerId,
+          gameId,
+          token,
+        },
+      });
+    } else {
+      PLAYER_TOKENS[playerId] = {
+        gameId,
+        token,
+      };
+    }
 
     return token;
   }
@@ -31,10 +47,52 @@ export default class GameService {
   /**
    * Remove a player token from the cache
    */
-  private static removeToken(gameId: string, playerId: string): void {
-    if (PLAYER_TOKENS[playerId] && PLAYER_TOKENS[playerId].gameId === gameId) {
+  private static async removeToken(
+    server: Server,
+    gameId: string,
+    playerId: string
+  ): Promise<void> {
+    if (server.options.jsonpadPlayersList !== null) {
+      await server.jsonpad.deleteItem(
+        server.options.jsonpadPlayersList,
+        playerId
+      );
+    } else if (
+      PLAYER_TOKENS[playerId] &&
+      PLAYER_TOKENS[playerId].gameId === gameId
+    ) {
       delete PLAYER_TOKENS[playerId];
     }
+  }
+
+  /**
+   * Check if a player token is valid
+   */
+  public static async verifyToken(
+    server: Server,
+    gameId: string,
+    playerId: string,
+    token: string
+  ): Promise<boolean> {
+    let playerToken: {
+      gameId: string;
+      token: string;
+    };
+
+    if (server.options.jsonpadPlayersList !== null) {
+      playerToken = await server.jsonpad.fetchItemData(
+        server.options.jsonpadPlayersList,
+        playerId
+      );
+    } else {
+      playerToken = PLAYER_TOKENS[playerId];
+    }
+
+    return (
+      playerToken &&
+      playerToken.gameId === gameId &&
+      playerToken.token === token
+    );
   }
 
   /**
@@ -45,23 +103,6 @@ export default class GameService {
       .randomBytes(constants.TOKEN_LENGTH)
       .toString('hex')
       .slice(0, constants.TOKEN_LENGTH);
-  }
-
-  /**
-   * Check if a player token is valid
-   */
-  public static verifyToken(
-    gameId: string,
-    playerId: string,
-    token: string
-  ): boolean {
-    const playerToken = PLAYER_TOKENS[playerId];
-
-    return (
-      playerToken &&
-      playerToken.gameId === gameId &&
-      playerToken.token === token
-    );
   }
 
   /**
@@ -177,7 +218,7 @@ export default class GameService {
     );
 
     // Generate and cache a token for this player in this game
-    const token = this.addToken(createdGameItem.id, player.id);
+    const token = await this.addToken(server, createdGameItem.id, player.id);
 
     return [this.dataToGame(createdGameItem.id, createdGameItem.data), token];
   }
@@ -236,7 +277,7 @@ export default class GameService {
     );
 
     // Generate and cache a token for this player in this game
-    const token = this.addToken(game.id, player.id);
+    const token = await this.addToken(server, game.id, player.id);
 
     return [this.dataToGame(updatedGameItem.id, updatedGameItem.data), token];
   }
@@ -256,8 +297,8 @@ export default class GameService {
     }
 
     // Find the player making the move
-    const player = game.players.find(p =>
-      this.verifyToken(game.id, p.id, token)
+    const player = await asyncFind(game.players, p =>
+      this.verifyToken(server, game.id, p.id, token)
     );
     if (!player) {
       throw new ServerError('Invalid player token', 403);
@@ -293,7 +334,9 @@ export default class GameService {
       game.finishedAt = new Date();
 
       // Invalidate all player tokens for this game
-      game.players.forEach(p => this.removeToken(game.id, p.id));
+      await asyncForEach(game.players, p =>
+        this.removeToken(server, game.id, p.id)
+      );
     }
 
     // Current player has finished their turn

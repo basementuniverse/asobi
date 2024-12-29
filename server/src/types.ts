@@ -1,6 +1,7 @@
 export type ServerOptions = {
   jsonpadServerToken: string;
   jsonpadGamesList: string;
+  jsonpadPlayersList: string | null;
   minPlayers: number;
   maxPlayers: number;
   gameSchema: any;
