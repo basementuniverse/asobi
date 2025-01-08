@@ -4,7 +4,7 @@ import ServerError from '../error';
 import GameService from '../game-service';
 import { Server } from '../server';
 
-export async function startGame(
+export async function createGame(
   server: Server,
   request: Request,
   response: Response
@@ -40,7 +40,7 @@ export async function startGame(
     }
   }
 
-  const [game, token] = await GameService.startGame(
+  const [game, token] = await GameService.createGame(
     server,
     playerName,
     playerData,

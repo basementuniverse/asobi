@@ -18,9 +18,9 @@ const server = new AsobiServer({
 
     // A new game was started by a player
     // The player will be "Player 1"
-    startGame: async (game, player) => {
+    createGame: async (game, player) => {
       game.state = {
-        targetScore: 30,
+        targetScore: 20,
       };
 
       player.state = {
@@ -43,18 +43,14 @@ const server = new AsobiServer({
     // A player made a move
     // For this example, the move doesn't require any player-defined data
     move: async (game, player, move) => {
-      const increment = Math.floor(Math.random() * 5) + 1;
+      const increment = Math.floor(Math.random() * 10) + 1;
 
       player.state.score += increment;
 
       // Check if the player has reached the target with this move
       if (player.state.score >= game.state.targetScore) {
         game.state.winner = player.id;
-
-        // One method of ending the game is to set the status of all players to "finished"
-        game.players.forEach(p => {
-          p.status = 'finished';
-        });
+        game.status = 'finished';
       }
 
       return game;

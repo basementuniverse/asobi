@@ -6,7 +6,7 @@ import http from 'http';
 import * as constants from './constants';
 import * as controllers from './controllers';
 import ServerError from './error';
-import { ServerOptions } from './types';
+import { GameMode, ServerOptions } from './types';
 
 export class Server {
   private static readonly defaultOptions: ServerOptions = {
@@ -15,6 +15,10 @@ export class Server {
     jsonpadPlayersList: null,
     minPlayers: 2,
     maxPlayers: 2,
+    mode: GameMode.TURNS,
+    turnTimeLimit: null,
+    roundTimeLimit: null,
+    gameTimeLimit: null,
     gameSchema: {
       type: 'object',
     },
@@ -48,9 +52,9 @@ export class Server {
 
     // API routes
     this.api.post(
-      '/start-game',
+      '/create-game',
       async (request: Request, response: Response) => {
-        await controllers.startGame(this, request, response);
+        await controllers.createGame(this, request, response);
       }
     );
     this.api.post(

@@ -44,6 +44,7 @@ require("express-async-errors");
 const constants = __importStar(require("./constants"));
 const controllers = __importStar(require("./controllers"));
 const error_1 = __importDefault(require("./error"));
+const types_1 = require("./types");
 class Server {
     constructor(options) {
         this.server = null;
@@ -56,8 +57,8 @@ class Server {
             optionsSuccessStatus: 204,
         }));
         // API routes
-        this.api.post('/start-game', async (request, response) => {
-            await controllers.startGame(this, request, response);
+        this.api.post('/create-game', async (request, response) => {
+            await controllers.createGame(this, request, response);
         });
         this.api.post('/join-game/:gameId', async (request, response) => {
             await controllers.joinGame(this, request, response);
@@ -103,6 +104,10 @@ Server.defaultOptions = {
     jsonpadPlayersList: null,
     minPlayers: 2,
     maxPlayers: 2,
+    mode: types_1.GameMode.TURNS,
+    turnTimeLimit: null,
+    roundTimeLimit: null,
+    gameTimeLimit: null,
     gameSchema: {
         type: 'object',
     },

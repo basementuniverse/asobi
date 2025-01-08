@@ -5,7 +5,14 @@ import { v4 as uuid } from 'uuid';
 import * as constants from './constants';
 import ServerError from './error';
 import { Server } from './server';
-import { Game, GameStatus, Move, PlayerStatus } from './types';
+import {
+  Game,
+  GameMode,
+  GameStatus,
+  Move,
+  Player,
+  PlayerStatus,
+} from './types';
 
 const PLAYER_TOKENS: Record<
   string,
@@ -14,6 +21,10 @@ const PLAYER_TOKENS: Record<
     token: string;
   }
 > = {};
+
+const TURN_TIMEOUTS: Record<string, NodeJS.Timeout> = {};
+const ROUND_TIMEOUTS: Record<string, NodeJS.Timeout> = {};
+const GAME_TIMEOUTS: Record<string, NodeJS.Timeout> = {};
 
 export default class GameService {
   /**
@@ -158,9 +169,9 @@ export default class GameService {
   }
 
   /**
-   * Start a new game with the specified player as Player 1
+   * Create a new game with the specified player as Player 1
    */
-  public static async startGame(
+  public static async createGame(
     server: Server,
     playerName: string,
     playerData?: Record<string, any>,
@@ -169,7 +180,7 @@ export default class GameService {
   ): Promise<[Game, string]> {
     const player = {
       id: uuid(),
-      name: playerName,
+      name: playerName || 'Player 1',
       status: PlayerStatus.WAITING_FOR_TURN,
       state: playerData,
     };
@@ -187,7 +198,7 @@ export default class GameService {
       status: GameStatus.WAITING_TO_START,
       startedAt: null,
       finishedAt: null,
-      lastEventType: 'game-started',
+      lastEventType: 'game-created',
       lastEventData: null,
       numPlayers: actualNumPlayers,
       players: [player],
@@ -198,16 +209,11 @@ export default class GameService {
 
     // If we've got enough players, start the game
     if (game.players.length >= game.numPlayers) {
-      game.status = GameStatus.STARTED;
-      game.startedAt = new Date();
-      game.round = 1;
-
-      // Player 1 has the first turn
-      game.players[0].status = PlayerStatus.TAKING_TURN;
+      this.startGame(server, game);
     }
 
-    // Call startGame hook if one is defined
-    game = (await server.options.hooks?.startGame?.(game, player)) ?? game;
+    // Call createGame hook if one is defined
+    game = (await server.options.hooks?.createGame?.(game, player)) ?? game;
 
     // Save the game in jsonpad
     const createdGameItem = await server.jsonpad.createItem(
@@ -244,7 +250,7 @@ export default class GameService {
 
     const player = {
       id: uuid(),
-      name: playerName,
+      name: playerName || `Player ${game.players.length + 1}`,
       status: PlayerStatus.WAITING_FOR_TURN,
       state: playerData,
     };
@@ -254,12 +260,7 @@ export default class GameService {
 
     // If we've got enough players, start the game
     if (game.players.length >= game.numPlayers) {
-      game.status = GameStatus.STARTED;
-      game.startedAt = new Date();
-      game.round = 1;
-
-      // Player 1 has the first turn
-      game.players[0].status = PlayerStatus.TAKING_TURN;
+      this.startGame(server, game);
     }
 
     // Call joinGame hook if one is defined
@@ -280,6 +281,106 @@ export default class GameService {
     const token = await this.addToken(server, game.id, player.id);
 
     return [this.dataToGame(updatedGameItem.id, updatedGameItem.data), token];
+  }
+
+  /**
+   * Start a game
+   */
+  private static startGame(server: Server, game: Game): Game {
+    game.status = GameStatus.STARTED;
+    game.startedAt = new Date();
+    game.round = 1;
+
+    // Handle initial move
+    let firstPlayer: Player;
+    switch (server.options.mode) {
+      case GameMode.TURNS:
+        // Player 1 has the first turn
+        firstPlayer = game.players[0];
+        firstPlayer.status = PlayerStatus.TAKING_TURN;
+
+        // If a turn time limit is defined, set a timeout for the current player
+        if (server.options.turnTimeLimit) {
+          const timeLimit = server.options.turnTimeLimit * constants.MS;
+
+          TURN_TIMEOUTS[firstPlayer.id] = setTimeout(async () => {
+            game.lastEventType = 'timed-out';
+
+            const updatedGame = this.advanceGame(server, game, firstPlayer);
+
+            await server.jsonpad.replaceItemData(
+              server.options.jsonpadGamesList,
+              game.id,
+              this.gameToData(updatedGame)
+            );
+          }, timeLimit);
+
+          game.turnFinishesAt = new Date(Date.now() + timeLimit);
+        }
+        break;
+
+      case GameMode.ROUNDS:
+        // All players are ready to move
+        game.players.forEach(p => {
+          p.status = PlayerStatus.TAKING_TURN;
+        });
+
+        // If a round time limit is defined, set a timeout for the current round
+        if (server.options.roundTimeLimit) {
+          const timeLimit = server.options.roundTimeLimit * constants.MS;
+
+          if (ROUND_TIMEOUTS[game.id]) {
+            clearTimeout(ROUND_TIMEOUTS[game.id]);
+          }
+
+          ROUND_TIMEOUTS[game.id] = setTimeout(async () => {
+            game.lastEventType = 'timed-out';
+            game.round++;
+            game.players.forEach(p => {
+              p.status = PlayerStatus.TAKING_TURN;
+            });
+
+            await server.jsonpad.replaceItemData(
+              server.options.jsonpadGamesList,
+              game.id,
+              this.gameToData(game)
+            );
+          }, timeLimit);
+
+          game.roundFinishesAt = new Date(Date.now() + timeLimit);
+        }
+      case GameMode.FREE:
+        // All players are ready to move
+        game.players.forEach(p => {
+          p.status = PlayerStatus.TAKING_TURN;
+        });
+        break;
+    }
+
+    // If a game time limit is defined, set a timeout for the game
+    if (server.options.gameTimeLimit) {
+      const timeLimit = server.options.gameTimeLimit * constants.MS;
+
+      if (GAME_TIMEOUTS[game.id]) {
+        clearTimeout(GAME_TIMEOUTS[game.id]);
+      }
+
+      GAME_TIMEOUTS[game.id] = setTimeout(async () => {
+        game.lastEventType = 'timed-out';
+
+        const finishedGame = await this.finishGame(server, game);
+
+        await server.jsonpad.replaceItemData(
+          server.options.jsonpadGamesList,
+          game.id,
+          this.gameToData(finishedGame)
+        );
+      }, timeLimit);
+
+      game.gameFinishesAt = new Date(Date.now() + timeLimit);
+    }
+
+    return game;
   }
 
   /**
@@ -316,59 +417,18 @@ export default class GameService {
       data: moveData,
     };
     game.moves.push(move);
+    game.lastEventType = 'player-moved';
     game.lastEventData = null;
 
     // Call move hook if one is defined
     game = (await server.options.hooks?.move?.(game, player, move)) ?? game;
 
-    // Check if the game has been completed
-    // This will occur if all other players have finished
-    let lastEventType: string = 'player-moved';
-    if (
-      game.players.every(
-        p => p.id === player.id || p.status === PlayerStatus.FINISHED
-      )
-    ) {
-      lastEventType = 'game-finished';
-      game.status = GameStatus.COMPLETED;
-      game.finishedAt = new Date();
-
-      // Invalidate all player tokens for this game
-      await asyncForEach(game.players, p =>
-        this.removeToken(server, game.id, p.id)
-      );
+    // Check if the game has been finished in this move
+    if (game.status === GameStatus.FINISHED) {
+      game = await this.finishGame(server, game, false);
     }
 
-    // Current player has finished their turn
-    player.status = PlayerStatus.WAITING_FOR_TURN;
-
-    // Advance to the next turn
-    if (game.players.some(p => p.status === PlayerStatus.WAITING_FOR_TURN)) {
-      const currentPlayerIndex = game.players.findIndex(
-        p => p.id === player.id
-      );
-      for (let i = 1; i < game.players.length; i++) {
-        const currentIndex = (currentPlayerIndex + i) % game.players.length;
-
-        // Increment the round if we pass the end of the player list
-        if (currentIndex >= game.players.length) {
-          game.round++;
-        }
-
-        if (
-          game.players[currentIndex].status === PlayerStatus.WAITING_FOR_TURN
-        ) {
-          game.players[currentIndex].status = PlayerStatus.TAKING_TURN;
-          break;
-        }
-      }
-    }
-
-    // Sanity check: if all players are waiting for their turn, something went wrong
-    // In this case, we'll just set the first player to taking their turn
-    if (game.players.every(p => p.status === PlayerStatus.WAITING_FOR_TURN)) {
-      game.players[0].status = PlayerStatus.TAKING_TURN;
-    }
+    this.advanceGame(server, game, player);
 
     // Save the game in jsonpad
     const updatedGameItem = await server.jsonpad.replaceItemData(
@@ -376,9 +436,6 @@ export default class GameService {
       game.id,
       this.gameToData({
         ...game,
-
-        // @ts-ignore
-        lastEventType,
         lastEventData: {
           ...move,
           ...(game.lastEventData ?? {}),
@@ -387,5 +444,157 @@ export default class GameService {
     );
 
     return this.dataToGame(updatedGameItem.id, updatedGameItem.data);
+  }
+
+  /**
+   * Handle turn/round advancement
+   */
+  private static advanceGame(server: Server, game: Game, player: Player): Game {
+    // Handle turn/round advancement
+    switch (server.options.mode) {
+      case GameMode.TURNS:
+        // Current player has finished their turn
+        player.status = PlayerStatus.WAITING_FOR_TURN;
+
+        // Advance to the next turn
+        let nextPlayer: Player;
+        if (
+          game.players.some(p => p.status === PlayerStatus.WAITING_FOR_TURN)
+        ) {
+          const currentPlayerIndex = game.players.findIndex(
+            p => p.id === player.id
+          );
+          for (let i = 1; i < game.players.length; i++) {
+            const currentIndex = (currentPlayerIndex + i) % game.players.length;
+
+            // Increment the round if we pass the end of the player list
+            if (currentIndex >= game.players.length) {
+              game.round++;
+            }
+
+            if (
+              game.players[currentIndex].status ===
+              PlayerStatus.WAITING_FOR_TURN
+            ) {
+              nextPlayer = game.players[currentIndex];
+              nextPlayer.status = PlayerStatus.TAKING_TURN;
+              break;
+            }
+          }
+        }
+
+        // Sanity check: if all players are waiting for their turn, something went wrong
+        // In this case, we'll just set the first player to taking their turn
+        if (
+          game.players.every(p => p.status === PlayerStatus.WAITING_FOR_TURN)
+        ) {
+          nextPlayer = game.players[0];
+          nextPlayer.status = PlayerStatus.TAKING_TURN;
+        }
+
+        // If a turn time limit is defined, set a timeout for the current player
+        if (server.options.turnTimeLimit) {
+          const timeLimit = server.options.turnTimeLimit * constants.MS;
+
+          if (TURN_TIMEOUTS[player.id]) {
+            clearTimeout(TURN_TIMEOUTS[player.id]);
+          }
+
+          TURN_TIMEOUTS[player.id] = setTimeout(async () => {
+            game.lastEventType = 'timed-out';
+
+            const updatedGame = this.advanceGame(server, game, nextPlayer);
+
+            await server.jsonpad.replaceItemData(
+              server.options.jsonpadGamesList,
+              game.id,
+              this.gameToData(updatedGame)
+            );
+          }, timeLimit);
+
+          game.turnFinishesAt = new Date(Date.now() + timeLimit);
+        }
+        break;
+
+      case GameMode.ROUNDS:
+        // Current player has finished their turn
+        player.status = PlayerStatus.WAITING_FOR_TURN;
+
+        // If all players have finished their turn, advance to the next round
+        if (
+          game.players.every(p => p.status === PlayerStatus.WAITING_FOR_TURN)
+        ) {
+          game.round++;
+          game.players.forEach(p => {
+            p.status = PlayerStatus.TAKING_TURN;
+          });
+
+          // If a round time limit is defined, set a timeout for the current round
+          if (server.options.roundTimeLimit) {
+            const timeLimit = server.options.roundTimeLimit * constants.MS;
+
+            if (ROUND_TIMEOUTS[game.id]) {
+              clearTimeout(ROUND_TIMEOUTS[game.id]);
+            }
+
+            ROUND_TIMEOUTS[game.id] = setTimeout(async () => {
+              game.lastEventType = 'timed-out';
+              game.players.forEach(p => {
+                p.status = PlayerStatus.WAITING_FOR_TURN;
+              });
+
+              const updatedGame = this.advanceGame(server, game, player);
+
+              await server.jsonpad.replaceItemData(
+                server.options.jsonpadGamesList,
+                game.id,
+                this.gameToData(updatedGame)
+              );
+            }, timeLimit);
+
+            game.roundFinishesAt = new Date(Date.now() + timeLimit);
+          }
+        }
+        break;
+
+      case GameMode.FREE:
+        break;
+    }
+
+    return game;
+  }
+
+  /**
+   * Finish a game
+   */
+  public static async finishGame(
+    server: Server,
+    game: Game,
+    save: boolean = true
+  ): Promise<Game> {
+    game.status = GameStatus.FINISHED;
+    game.finishedAt = new Date();
+    game.lastEventType = 'game-finished';
+
+    // Call finishGame hook if one is defined
+    game = (await server.options.hooks?.finishGame?.(game)) ?? game;
+
+    // Invalidate all player tokens for this game
+    await asyncForEach(game.players, p =>
+      this.removeToken(server, game.id, p.id)
+    );
+
+    // Save the game in jsonpad
+    if (save) {
+      const updatedGameItem = await server.jsonpad.replaceItemData(
+        server.options.jsonpadGamesList,
+        game.id,
+        this.gameToData(game)
+      );
+
+      return this.dataToGame(updatedGameItem.id, updatedGameItem.data);
+    }
+
+    return game;
   }
 }

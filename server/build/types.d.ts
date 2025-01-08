@@ -4,19 +4,29 @@ export type ServerOptions = {
     jsonpadPlayersList: string | null;
     minPlayers: number;
     maxPlayers: number;
+    mode: GameMode;
+    turnTimeLimit: number | null;
+    roundTimeLimit: number | null;
+    gameTimeLimit: number | null;
     gameSchema: any;
     playerSchema: any;
     moveSchema: any;
     hooks: Partial<{
-        startGame: (game: Game, player: Player) => Promise<Game>;
+        createGame: (game: Game, player: Player) => Promise<Game>;
         joinGame: (game: Game, player: Player) => Promise<Game>;
         move: (game: Game, player: Player, move: Move) => Promise<Game>;
+        finishGame: (game: Game) => Promise<Game>;
     }>;
 };
+export declare enum GameMode {
+    TURNS = "turns",
+    ROUNDS = "rounds",
+    FREE = "free"
+}
 export declare enum GameStatus {
     WAITING_TO_START = "waiting_to_start",
     STARTED = "started",
-    COMPLETED = "completed"
+    FINISHED = "finished"
 }
 export declare enum PlayerStatus {
     WAITING_FOR_TURN = "waiting_for_turn",
@@ -39,13 +49,16 @@ export type Game = {
     status: GameStatus;
     startedAt: Date | null;
     finishedAt: Date | null;
-    lastEventType: 'game-started' | 'player-joined' | 'player-moved' | 'game-finished';
+    lastEventType: 'game-created' | 'player-joined' | 'player-moved' | 'timed-out' | 'game-finished';
     lastEventData: any;
     numPlayers: number;
     players: Player[];
     moves: Move[];
     round: number;
     state: any;
+    turnFinishesAt?: Date | null;
+    roundFinishesAt?: Date | null;
+    gameFinishesAt?: Date | null;
 };
 export type SerialisedGame = Omit<Game, 'id' | 'startedAt' | 'finishedAt'> & {
     startedAt: string;

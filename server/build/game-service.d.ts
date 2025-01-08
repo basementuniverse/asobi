@@ -26,15 +26,27 @@ export default class GameService {
      */
     static dataToGame(id: string, data: Record<string, any>): Game;
     /**
-     * Start a new game with the specified player as Player 1
+     * Create a new game with the specified player as Player 1
      */
-    static startGame(server: Server, playerName: string, playerData?: Record<string, any>, gameData?: Record<string, any>, numPlayers?: number): Promise<[Game, string]>;
+    static createGame(server: Server, playerName: string, playerData?: Record<string, any>, gameData?: Record<string, any>, numPlayers?: number): Promise<[Game, string]>;
     /**
      * Join an existing game as Player 2+
      */
     static joinGame(server: Server, game: Game, playerName: string, playerData?: Record<string, any>): Promise<[Game, string]>;
     /**
+     * Start a game
+     */
+    private static startGame;
+    /**
      * Make a move in an existing game
      */
     static move(server: Server, game: Game, token: string, moveData?: Record<string, any>): Promise<Game>;
+    /**
+     * Handle turn/round advancement
+     */
+    private static advanceGame;
+    /**
+     * Finish a game
+     */
+    static finishGame(server: Server, game: Game, save?: boolean): Promise<Game>;
 }

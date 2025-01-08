@@ -7,7 +7,7 @@ export type ClientOptions = {
 export enum GameStatus {
   WAITING_TO_START = 'waiting_to_start',
   STARTED = 'started',
-  COMPLETED = 'completed',
+  FINISHED = 'finished',
 }
 
 export enum PlayerStatus {
@@ -25,6 +25,7 @@ export type Player = {
 
 export type Move = {
   playerId: string;
+  movedAt: Date;
   data: any;
 };
 
@@ -34,17 +35,20 @@ export type Game = {
   startedAt: Date | null;
   finishedAt: Date | null;
   lastEventType:
-    | 'game-started'
+    | 'game-created'
     | 'player-joined'
     | 'player-moved'
+    | 'timed-out'
     | 'game-finished';
   lastEventData: any;
-  minPlayers: number;
-  maxPlayers: number;
+  numPlayers: number;
   players: Player[];
   moves: Move[];
   round: number;
   state: any;
+  turnFinishesAt?: Date | null;
+  roundFinishesAt?: Date | null;
+  gameFinishesAt?: Date | null;
 };
 
 export type SerialisedGame = Omit<Game, 'id' | 'startedAt' | 'finishedAt'> & {

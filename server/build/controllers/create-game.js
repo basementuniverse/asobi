@@ -3,11 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.startGame = startGame;
+exports.createGame = createGame;
 const jsonschema_1 = require("jsonschema");
 const error_1 = __importDefault(require("../error"));
 const game_service_1 = __importDefault(require("../game-service"));
-async function startGame(server, request, response) {
+async function createGame(server, request, response) {
     const { playerName, playerData, gameData, numPlayers } = request.body;
     // Validate player data
     if (playerData && server.options.playerSchema) {
@@ -25,7 +25,7 @@ async function startGame(server, request, response) {
                 .join(', ')})`, 400);
         }
     }
-    const [game, token] = await game_service_1.default.startGame(server, playerName, playerData, gameData, numPlayers);
+    const [game, token] = await game_service_1.default.createGame(server, playerName, playerData, gameData, numPlayers);
     response.status(201).json({ game, token });
 }
-//# sourceMappingURL=start-game.js.map
+//# sourceMappingURL=create-game.js.map

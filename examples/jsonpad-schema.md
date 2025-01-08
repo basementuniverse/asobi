@@ -21,7 +21,7 @@ We need a list to store games.
       "enum": [
         "waiting_to_start",
         "started",
-        "completed"
+        "finished"
       ]
     },
     "startedAt": {
@@ -49,9 +49,10 @@ We need a list to store games.
     "lastEventType": {
       "type": "string",
       "enum": [
-        "game-started",
+        "game-created",
         "game-finished",
         "player-joined",
+        "timed-out",
         "player-moved"
       ]
     },
@@ -110,7 +111,29 @@ We need a list to store games.
     "round": {
       "type": "integer"
     },
-    "state": {}
+    "state": {},
+    "turnFinishesAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "gameFinishesAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    }
   },
   "required": [
     "status",

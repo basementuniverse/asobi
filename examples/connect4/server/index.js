@@ -127,7 +127,7 @@ const server = new AsobiServer({
   jsonpadGamesList: JSONPAD_GAMES_LIST,
   jsonpadPlayersList: JSONPAD_PLAYERS_LIST,
   hooks: {
-    startGame: async (game, player) => {
+    createGame: async (game, player) => {
       if (!game.state) {
         game.state = {};
       }
@@ -204,9 +204,7 @@ const server = new AsobiServer({
         vec2(column, row)
       )) {
         game.state.winner = player.id;
-        game.players.forEach(p => {
-          p.status = 'finished';
-        });
+        game.status = 'finished';
       }
 
       return game;

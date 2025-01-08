@@ -38,7 +38,7 @@ const app = createApp({
   async created() {
     this.loadGames();
 
-    this.asobi.addEventListener('game-started', e => {
+    this.asobi.addEventListener('game-created', e => {
       this.games.unshift(e.detail);
     });
 
@@ -87,9 +87,9 @@ const app = createApp({
       }
     },
 
-    async startGame() {
+    async createGame() {
       try {
-        const [game, token] = await this.asobi.startGame('Player 1');
+        const [game, token] = await this.asobi.createGame('Player 1');
 
         setTimeout(() => {
           window
@@ -97,7 +97,7 @@ const app = createApp({
             .focus();
         }, 500);
       } catch (error) {
-        console.error('Error starting game:', error);
+        console.error('Error creating game:', error);
       }
     },
 
@@ -126,7 +126,7 @@ window.addEventListener('DOMContentLoaded', () => {
 <body>
   <div id="app">
     <h1>Connect 4</h1>
-    <button @click="startGame()" >Start new game</button>
+    <button @click="createGame()" >Start new game</button>
 
     <!-- Games List -->
     <div v-for="game in games" :key="game.id" class="game">

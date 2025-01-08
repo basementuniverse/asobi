@@ -8,56 +8,225 @@ A multiplayer turn-based game server for Node.js.
 npm install @basementuniverse/asobi-server
 ```
 
+## Setup
+
+See [jsonpad-schema.md](../examples/jsonpad-schema.md) for instructions on setting up JSONPad.
+
 ## Usage
 
 ```ts
 import { AsobiServer, Game } from '@basementuniverse/asobi-server';
 
+// We need to create an instance of the server...
 const server = new AsobiServer({
+  /**
+   * Your server-side token for jsonpad.io
+   *
+   * This shouldn't be exposed to the client, so it's safe to give this token
+   * write permissions
+   */
   jsonpadServerToken: '<YOUR JSONPAD TOKEN>',
+
+  /**
+   * The id or pathname of the jsonpad.io list which will contain game sessions
+   */
   jsonpadGamesList: '<YOUR JSONPAD LIST PATHNAME>',
+
+  /**
+   * The id or pathname of the jsonpad.io list which will contain player tokens
+   *
+   * This is optional; if not defined, player tokens will be cached in memory
+   * instead (note that if the server or Node process restarts, all player
+   * tokens will be lost, rendering any currently-in-progress games unplayable)
+   *
+   * If defined, player tokens will be stored in a JSONPad list
+   */
+  jsonpadPlayersList: '<YOUR JSONPAD LIST PATHNAME>',
+
+  /**
+   * The minimum number of players in each game
+   *
+   * By default, once a game has this many players it will start
+   *
+   * However when a game is created we can pass in the number of players for
+   * that particular game session (it must be between minPlayers and maxPlayers)
+   */
   minPlayers: 2,
+
+  /**
+   * The maximum number of players in each game
+   */
   maxPlayers: 2,
+
+  /**
+   * In "turns" mode, each player takes a turn in the order that they joined the game
+   *
+   * Once all players have played their turn, the game advances to the next round
+   *
+   * (this is the default mode)
+   */
+  mode: 'turns',
+
+  /**
+   * In "rounds" mode, each player can take their turn in any order during a round
+   *
+   * Once all players have played their turn, the game advances to the next round
+   */
+  // mode: 'rounds',
+
+  /**
+   * In "free" mode, players can take turns in any order and at any time
+   */
+  // mode: 'free',
+
+  /**
+   * Time limit (in seconds) for each player turn
+   *
+   * If no move is made within this time limit, the game advances to the next turn
+   *
+   * Only used in "turns" mode
+   *
+   * Set this to null to disable turn time limits
+   */
+  turnTimeLimit: null,
+
+  /**
+   * Time limit (in seconds) for each round
+   *
+   * After this amount of time has elapsed, the game advances to the next round, and
+   * any players who haven't made a move will forfeit their move for the current round
+   *
+   * Only used in "rounds" mode
+   *
+   * Set this to null to disable round time limits
+   */
+  roundTimeLimit: null,
+
+  /**
+   * Time limit (in seconds) for each game
+   *
+   * If the game hasn't finished within this time limit, the gameFinished hook is
+   * called automatically when this time has elapsed
+   *
+   * Set this to null to disable game time limits
+   */
+  gameTimeLimit: null,
+
+  /**
+   * An optional JSON Schema for validating "initial game state" data passed
+   * from the client when creating a game
+   *
+   * This can be useful if we want players to be able to customize a game
+   * session when they create a new game, e.g. select a map to play on, or set
+   * the difficulty etc.
+   */
   gameSchema: {
     type: 'object',
   },
+
+  /**
+   * An optional JSON Schema for validating "initial player state" data passed
+   * from the client when starting or joining a game
+   *
+   * This can be useful if we want players to be able to customize all or part
+   * of their initial state when starting a new game or joining an existing
+   * game, e.g. select a character class or avatar, choose their starting
+   * weapon etc.
+   */
   playerSchema: {
     type: 'object',
   },
+
+  /**
+   * An optional JSON Schema for validating move data
+   *
+   * We can of course validate game data, player data, and move data inside the
+   * hooks (see below), but these schemas might be useful as initial validation
+   *
+   * Further checks (e.g. checking if a move is valid/legal based on the game
+   * rules) can be performed in the hooks
+   */
   moveSchema: {
     type: 'object',
   },
+
+  /**
+   * These functions will be called at specific points in a game's lifecycle
+   */
   hooks: {
-    startGame: async (game: Game): Promise<Game> => {
+    /**
+     * A player has created a new game
+     *
+     * The player who started the game will be in game.players[0], and their
+     * initial player state will be in game.players[0].state
+     *
+     * Initial game state data will be in game.state
+     */
+    createGame: async (game: Game): Promise<Game> => {
       // Initialize game state here...
 
-      // lastEventType will be 'game-started'
-      // lastEventData will be set to null
+      // game.lastEventType will be 'game-created'
+      // game.lastEventData will be set to null
 
       return game;
     },
+
+    /**
+     * A player has joined an existing game
+     */
     joinGame: async (game: Game, player: Player): Promise<Game> => {
       // Handle player joined here...
 
-      // lastEventType will be 'player-joined'
-      // lastEventData will be set to the player object
+      // game.lastEventType will be 'player-joined'
+      // game.lastEventData will be set to the player object
 
       return game;
     },
+
+    /**
+     * A player made a move in a game
+     */
     move: async (game: Game, player: Player, move: Move): Promise<Game> => {
       // Handle player move and update game state accordingly here...
 
-      // lastEventType will be 'player-moved'
-      // lastEventData will be reset to null before this hook is called
-      // then, after this hook returns, the move object will be merged into lastEventData
-      // this means we can customize the lastEventData object in this hook
+      // game.lastEventType will be 'player-moved'
+      // game.lastEventData will be reset to null before this hook is called
+      // then, after this hook returns, the move object will be merged into
+      // game.lastEventData, which means we can customize the lastEventData object
+      // in this hook
+
+      return game;
+    },
+
+    /**
+     * A game was finished
+     *
+     * This hook will usually be called after a winning move was played, but depending
+     * on how the game is set up, it could be e.g. after a certain max number of moves,
+     * or when all players except one have been eliminated, or after the game time limit
+     * has been reached etc.
+     */
+    finishGame: async (game: Game): Promise<Game> => {
+      // Handle game finished here...
+
+      // game.lastEventType will be 'game-finished'
+      // game.lastEventData will remain unchanged (so, if the finishGame hook is called
+      // after a winning move, it will contain move data or whatever was set inside the
+      // move hook)
 
       return game;
     },
   },
 });
 
+// Then we can start the server listening on port 3000
 server.start();
+
+// (we can specify a port number if we want...)
+// server.start(80);
+
+// We can stop the server if necessary...
+// server.stop();
 ```
 
 ## Game data
@@ -69,9 +238,10 @@ type Game = {
   startedAt: Date | null;
   finishedAt: Date | null;
   lastEventType:
-    | 'game-started'
+    | 'game-created'
     | 'player-joined'
     | 'player-moved'
+    | 'timed-out'
     | 'game-finished';
   lastEventData: any;
   numPlayers: number;
@@ -79,6 +249,9 @@ type Game = {
   moves: Move[];
   round: number;
   state: any;
+  turnFinishesAt?: Date | null;
+  roundFinishesAt?: Date | null;
+  gameFinishesAt?: Date | null;
 };
 
 type Player = {
@@ -97,7 +270,7 @@ type Move = {
 enum GameStatus {
   WAITING_TO_START = 'waiting_to_start',
   STARTED = 'started',
-  COMPLETED = 'completed',
+  FINISHED = 'finished',
 }
 
 enum PlayerStatus {

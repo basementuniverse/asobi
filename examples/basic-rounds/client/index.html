@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Basic Example (Mode: Rounds)</title>
+<script src="../../../client/build/client.js"></script>
+<script>
+
+// Create a new client instance...
+const client = new AsobiClient({
+  jsonpadClientToken: '<YOUR JSONPAD CLIENT TOKEN>',
+  jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
+  asobiServerUrl: 'http://localhost:3000',
+});
+
+// Fetch a page of games from the server
+function fetchGames() {
+  client.fetchGames().then(games => {
+    console.log('Games:', games);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Create a new game with you as Player 1
+function createGame() {
+  client.createGame('').then(([game, token]) => {
+    console.log('Token:', token);
+    console.log('Game:', game);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Join an existing game with you as Player 2 or Player 3
+function joinGame(id) {
+  client.joinGame(id, '').then(([game, token]) => {
+    console.log('Token:', token);
+    console.log('Game:', game);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Make a move in a game
+// We need to pass in a game id (this is the game in which the move will be made)
+// and a token (as returned from createGame or joinGame; this will identify and
+// authenticate the player making the move)
+// We also pass in some move data; in this case, a number (n) representing the
+// player's guess
+function move(id, token, n) {
+  client.move(id, token, { n }).then(game => {
+    console.log('Game:', game);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+// Handle various game life-cycle events...
+
+client.addEventListener('game-created', event => {
+  console.log('Game created:', event.detail);
+});
+
+client.addEventListener('game-finished', event => {
+  console.log('Game finished:', event.detail);
+});
+
+client.addEventListener('player-joined', event => {
+  console.log('Player joined:', event.detail);
+});
+
+client.addEventListener('player-moved', event => {
+  console.log('Player moved:', event.detail);
+});
+
+client.addEventListener('timed-out', event => {
+  console.log('Turn or round timed out:', event.detail);
+});
+
+</script>
+</head>
+<body>
+  <p>Open the console (F12)</p>
+  <ul>
+    <li><code>fetchGames()</code> will fetch a list of games</li>
+    <li><code>createGame()</code> will create a new game with you as Player 1, and will return a token that you can use to make moves</li>
+    <li><code>joinGame(id)</code> will join an existing game with you as Player 2 or Player 3, and will return a token that you can use to make moves</li>
+    <li><code>move(id, token, n)</code> will make a move in a game using the token you received when you started or joined the game</li>
+  </ul>
+</body>
+</html>

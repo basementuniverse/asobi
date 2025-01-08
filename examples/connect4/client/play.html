@@ -113,7 +113,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   // The game started
-  client.addEventListener('game-started', event => {
+  client.addEventListener('game-created', event => {
     if (!currentGame) {
       return;
     }

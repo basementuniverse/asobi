@@ -1,11 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PlayerStatus = exports.GameStatus = void 0;
+exports.PlayerStatus = exports.GameStatus = exports.GameMode = void 0;
+var GameMode;
+(function (GameMode) {
+    GameMode["TURNS"] = "turns";
+    GameMode["ROUNDS"] = "rounds";
+    GameMode["FREE"] = "free";
+})(GameMode || (exports.GameMode = GameMode = {}));
 var GameStatus;
 (function (GameStatus) {
     GameStatus["WAITING_TO_START"] = "waiting_to_start";
     GameStatus["STARTED"] = "started";
-    GameStatus["COMPLETED"] = "completed";
+    GameStatus["FINISHED"] = "finished";
 })(GameStatus || (exports.GameStatus = GameStatus = {}));
 var PlayerStatus;
 (function (PlayerStatus) {

@@ -1,4 +1,4 @@
-# Basic Game Example
+# Basic Game Example (Mode: Turns)
 
 2 player game where each player takes turns to increment a counter. The counter increments by a small random number on each turn. The player who reaches the target number first wins.
 
