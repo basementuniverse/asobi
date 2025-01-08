@@ -123,6 +123,17 @@ We need a list to store games.
         }
       ]
     },
+    "roundFinishesAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
     "gameFinishesAt": {
       "anyOf": [
         {
