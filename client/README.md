@@ -13,7 +13,7 @@ npm install @basementuniverse/asobi-client
 To use it in the browser, you can include it directly from a local file or CDN.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.2.0/build/client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.2.1/build/client.js"></script>
 ```
 
 ## Usage
