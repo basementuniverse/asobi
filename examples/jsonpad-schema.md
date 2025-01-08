@@ -84,7 +84,8 @@ We need a list to store games.
         "required": [
           "id",
           "name",
-          "status"
+          "status",
+          "state"
         ]
       }
     },
@@ -104,7 +105,8 @@ We need a list to store games.
         },
         "required": [
           "playerId",
-          "movedAt"
+          "movedAt",
+          "data"
         ]
       }
     },

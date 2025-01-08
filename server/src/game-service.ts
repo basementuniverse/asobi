@@ -182,7 +182,7 @@ export default class GameService {
       id: uuid(),
       name: playerName || 'Player 1',
       status: PlayerStatus.WAITING_FOR_TURN,
-      state: playerData,
+      state: playerData ?? {},
     };
 
     // Calculate how many players are required for this game
@@ -204,7 +204,7 @@ export default class GameService {
       players: [player],
       moves: [],
       round: 0,
-      state: gameData,
+      state: gameData ?? {},
     };
 
     // If we've got enough players, start the game
@@ -252,7 +252,7 @@ export default class GameService {
       id: uuid(),
       name: playerName || `Player ${game.players.length + 1}`,
       status: PlayerStatus.WAITING_FOR_TURN,
-      state: playerData,
+      state: playerData ?? {},
     };
 
     // Add player to the game
@@ -329,10 +329,6 @@ export default class GameService {
         if (server.options.roundTimeLimit) {
           const timeLimit = server.options.roundTimeLimit * constants.MS;
 
-          if (ROUND_TIMEOUTS[game.id]) {
-            clearTimeout(ROUND_TIMEOUTS[game.id]);
-          }
-
           ROUND_TIMEOUTS[game.id] = setTimeout(async () => {
             game.lastEventType = 'timed-out';
             game.round++;
@@ -360,10 +356,6 @@ export default class GameService {
     // If a game time limit is defined, set a timeout for the game
     if (server.options.gameTimeLimit) {
       const timeLimit = server.options.gameTimeLimit * constants.MS;
-
-      if (GAME_TIMEOUTS[game.id]) {
-        clearTimeout(GAME_TIMEOUTS[game.id]);
-      }
 
       GAME_TIMEOUTS[game.id] = setTimeout(async () => {
         game.lastEventType = 'timed-out';
@@ -414,7 +406,7 @@ export default class GameService {
     const move = {
       playerId: player.id,
       movedAt: new Date(),
-      data: moveData,
+      data: moveData ?? {},
     };
     game.moves.push(move);
     game.lastEventType = 'player-moved';

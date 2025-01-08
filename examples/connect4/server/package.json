@@ -6,7 +6,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@basementuniverse/asobi-server": "file:../../../server",
+    "@basementuniverse/asobi-server": "^1.2.0",
     "@basementuniverse/utils": "^1.7.0",
     "@basementuniverse/vec": "^2.1.0"
   }
