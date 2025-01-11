@@ -1,7 +1,8 @@
 export type ServerOptions = {
     jsonpadServerToken: string;
     jsonpadGamesList: string;
-    jsonpadPlayersList: string | null;
+    jsonpadPlayersList: string;
+    jsonpadRateLimit: number | null;
     minPlayers: number;
     maxPlayers: number;
     mode: GameMode;
@@ -37,7 +38,8 @@ export type Player = {
     id: string;
     name: string;
     status: PlayerStatus;
-    state?: any;
+    state: any;
+    hiddenState?: any;
 };
 export type Move = {
     playerId: string;

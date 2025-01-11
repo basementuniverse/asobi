@@ -4,14 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Basic Example (Mode: Rounds)</title>
-<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.2.1/build/client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.3.0/build/client.js"></script>
 <script>
+
+const GAMES = [];
 
 // Create a new client instance...
 const client = new AsobiClient({
   jsonpadClientToken: '<YOUR JSONPAD CLIENT TOKEN>',
   jsonpadGamesList: '<YOUR JSONPAD GAMES LIST PATH NAME>',
-  asobiServerUrl: 'http://localhost:3000',
+  asobiServerUrl: '<YOUR ASOBI SERVER URL>',
 });
 
 // Fetch a page of games from the server
@@ -28,6 +30,11 @@ function createGame() {
   client.createGame('').then(([game, token]) => {
     console.log('Token:', token);
     console.log('Game:', game);
+
+    GAMES.push({
+      id: game.id,
+      players: [token],
+    });
   }).catch(error => {
     console.error('Error:', error);
   });
@@ -38,6 +45,13 @@ function joinGame(id) {
   client.joinGame(id, '').then(([game, token]) => {
     console.log('Token:', token);
     console.log('Game:', game);
+
+    const found = GAMES.findIndex(g => g.id === game.id);
+    if (found === -1) {
+      throw new Error('Game not found');
+    }
+
+    GAMES[found].players.push(token);
   }).catch(error => {
     console.error('Error:', error);
   });
@@ -82,6 +96,7 @@ client.addEventListener('timed-out', event => {
 </script>
 </head>
 <body>
+  <h1>Basic Game Example ("Rounds" mode)</h1>
   <p>Open the console (F12)</p>
   <ul>
     <li><code>fetchGames()</code> will fetch a list of games</li>
@@ -89,5 +104,27 @@ client.addEventListener('timed-out', event => {
     <li><code>joinGame(id)</code> will join an existing game with you as Player 2 or Player 3, and will return a token that you can use to make moves</li>
     <li><code>move(id, token, n)</code> will make a move in a game using the token you received when you started or joined the game</li>
   </ul>
+  <p>
+    Games will be stored in <code>GAMES</code> with the following structure:
+  </p>
+  <pre>
+    [
+      {
+        id: 'game-id',
+        players: ['player-1-token', 'player-2-token', ...],
+      },
+      ...
+    ]
+  </pre>
+  <p>
+    This is a game for 3 players. In each round, players can take 1 turn each (in any order). A random target number is generated for each round. The player who guesses closest to the target number in each round will win 1 point. The first player to reach 5 points wins the game.
+  </p>
+  <h2>Examples</h2>
+  <p>Start a new game:</p>
+  <code>createGame()</code>
+  <p>Join the game we just created:</p>
+  <code>joinGame(GAMES[0].id)</code>
+  <p>Make a move as player (N - 1) in the game we just created, guessing "4":</p>
+  <code>move(GAMES[0].id, GAMES[0].players[N], 4)</code>
 </body>
 </html>

@@ -12,7 +12,8 @@ export class Server {
   private static readonly defaultOptions: ServerOptions = {
     jsonpadServerToken: '',
     jsonpadGamesList: '',
-    jsonpadPlayersList: null,
+    jsonpadPlayersList: '',
+    jsonpadRateLimit: 150,
     minPlayers: 2,
     maxPlayers: 2,
     mode: GameMode.TURNS,

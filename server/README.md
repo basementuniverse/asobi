@@ -34,14 +34,20 @@ const server = new AsobiServer({
 
   /**
    * The id or pathname of the jsonpad.io list which will contain player tokens
-   *
-   * This is optional; if not defined, player tokens will be cached in memory
-   * instead (note that if the server or Node process restarts, all player
-   * tokens will be lost, rendering any currently-in-progress games unplayable)
-   *
-   * If defined, player tokens will be stored in a JSONPad list
+   * and private player state
    */
   jsonpadPlayersList: '<YOUR JSONPAD LIST PATHNAME>',
+
+  /**
+   * Optionally define a rate limit for jsonpad.io requests
+   *
+   * Free and Developer subscription plans have rate limits of 100ms and 50ms
+   * respectively (the Enterprise plan has no rate limit), so depending on your
+   * plan you might want to set a rate limit here
+   *
+   * Default is 150, set this to 0 or null to disable rate limiting
+   */
+  jsonpadRateLimit: 150,
 
   /**
    * The minimum number of players in each game
@@ -229,7 +235,7 @@ server.start();
 // server.stop();
 ```
 
-## Game data
+## Types
 
 ```ts
 type Game = {
@@ -279,3 +285,15 @@ enum PlayerStatus {
   FINISHED = 'finished',
 }
 ```
+
+## A note about hidden player state
+
+For some games, we might want to hide some player state data from other players. For example, in a card game, we might want to hide a player's hand from opponents.
+
+To achieve this, in the `createGame`, `joinGame`, and `move` hooks, for each player in the game's `players` array we can include a `hiddenState` property in the player object.
+
+If this property is present in the game data when the hook returns, it will be removed.
+
+The current player (the player who is starting the game, joining the game, or currently taking their turn) will still be able to see their own hidden state in responses.
+
+Note that all hidden player state will be hidden from event handler parameters.

@@ -2,22 +2,6 @@ import { Server } from './server';
 import { Game } from './types';
 export default class GameService {
     /**
-     * Generate and cache a player token
-     */
-    private static addToken;
-    /**
-     * Remove a player token from the cache
-     */
-    private static removeToken;
-    /**
-     * Check if a player token is valid
-     */
-    static verifyToken(server: Server, gameId: string, playerId: string, token: string): Promise<boolean>;
-    /**
-     * Generate a new token value
-     */
-    private static generateToken;
-    /**
      * Convert a game to serialisable data
      */
     static gameToData(game: Game): Record<string, any>;

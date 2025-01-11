@@ -20,6 +20,9 @@ const server = new AsobiServer({
   // Players can make moves at any time and in any order
   mode: 'free',
 
+  // Each game lasts a maximum of 5 minutes
+  gameTimeLimit: 300,
+
   // Define hooks that will be called at various points in the game's lifecycle
   hooks: {
 

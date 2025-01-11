@@ -13,6 +13,9 @@ const server = new AsobiServer({
   // (if this is not provided, the server will store tokens in memory)
   jsonpadPlayersList: '<YOUR JSONPAD PLAYERS LIST PATH NAME>',
 
+  // Each turn must be taken within 60 seconds
+  turnTimeLimit: 60,
+
   // Define hooks that will be called at various points in the game's lifecycle
   hooks: {
 

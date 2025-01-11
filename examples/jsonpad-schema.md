@@ -163,16 +163,11 @@ We need a list to store games.
 }
 ```
 
-We should also have a list for players and their authorization tokens. This is optional since we can configure the server to store player tokens in memory instead, however:
-
-- The memory list will be cleared if the server Node process restarts, losing all current tokens (making all currently running games unplayable)
-- The memory list won't be shared across server instances if we want to scale the server horizontally
-
-So it's recommended to use a list to store player tokens.
+We should also have a list for players, their authorization tokens, and their hidden state.
 
 - The list name can be anything
 - The list can optionally have a path name (we could refer to the list by id instead, but using a path name is easier)
-- The list should not be indexable
+- The list should be indexable
 - The list doesn't need to have realtime enabled
 - The list can have a schema (this is optional but recommended):
 
@@ -188,12 +183,14 @@ So it's recommended to use a list to store player tokens.
     },
     "token": {
       "type": "string"
-    }
+    },
+    "state": {}
   },
   "required": [
     "playerId",
     "gameId",
-    "token"
+    "token",
+    "state"
   ]
 }
 ```
@@ -229,7 +226,7 @@ The games list will need 3 indexes:
 - value type: date
 - default order direction: descending
 
-If we're using a player tokens list, then this list will need 1 alias index:
+The players list will need 3 indexes:
 
 1. Player ID
 
@@ -237,6 +234,22 @@ If we're using a player tokens list, then this list will need 1 alias index:
 - pathname `player`
 - pointer `/playerId`
 - enable alias
+- value type: string
+
+2. Game ID
+
+- name can be anything
+- pathname `game`
+- pointer `/gameId`
+- enable filtering
+- value type: string
+
+3. Token
+
+- name can be anything
+- pathname `token`
+- pointer `/token`
+- enable filtering
 - value type: string
 
 ## Tokens

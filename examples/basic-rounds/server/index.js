@@ -21,6 +21,9 @@ const server = new AsobiServer({
   // in any given round
   mode: 'rounds',
 
+  // Each round lasts a maximum of 2 minutes
+  roundTimeLimit: 120,
+
   // Define hooks that will be called at various points in the game's lifecycle
   hooks: {
 

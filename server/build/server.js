@@ -101,7 +101,8 @@ exports.Server = Server;
 Server.defaultOptions = {
     jsonpadServerToken: '',
     jsonpadGamesList: '',
-    jsonpadPlayersList: null,
+    jsonpadPlayersList: '',
+    jsonpadRateLimit: 150,
     minPlayers: 2,
     maxPlayers: 2,
     mode: types_1.GameMode.TURNS,
