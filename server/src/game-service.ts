@@ -658,16 +658,6 @@ export default class GameService {
     // Call finishGame hook if one is defined
     game = (await server.options.hooks?.finishGame?.(game)) ?? game;
 
-    // Invalidate all player tokens for this game
-    await asyncForEach(game.players, async p => {
-      await server.jsonpad.deleteItem(server.options.jsonpadPlayersList, p.id);
-
-      // Handle jsonpad rate limiting
-      if (server.options.jsonpadRateLimit) {
-        await sleep(server.options.jsonpadRateLimit);
-      }
-    });
-
     // Remove timeouts for this game
     for (const player of game.players) {
       if (TURN_TIMEOUTS[player.id]) {
@@ -691,6 +681,58 @@ export default class GameService {
 
       return this.dataToGame(updatedGameItem.id, updatedGameItem.data);
     }
+
+    return game;
+  }
+
+  /**
+   * Fetch a game with a player's hidden state attached
+   */
+  public static async state(
+    server: Server,
+    game: Game,
+    token: string
+  ): Promise<Game> {
+    // Check if the game is running
+    if (
+      ![GameStatus.WAITING_TO_START, GameStatus.STARTED].includes(game.status)
+    ) {
+      throw new ServerError('Game is not waiting to start or running', 403);
+    }
+
+    // Find out which player is requesting their state in this game based on the token
+    const playerResults = await server.jsonpad.fetchItems(
+      server.options.jsonpadPlayersList,
+      {
+        limit: 1,
+        game: game.id,
+        token,
+        includeData: true,
+      }
+    );
+
+    if (playerResults.total === 0) {
+      // No player found with this token
+      throw new ServerError('Invalid player token', 403);
+    }
+
+    if (
+      playerResults.data[0].data.gameId !== game.id ||
+      playerResults.data[0].data.token !== token
+    ) {
+      // Game id or token doesn't match
+      throw new ServerError('Invalid player token', 403);
+    }
+
+    // Get the player's data from the game
+    const playerId = playerResults.data[0].data.playerId;
+    const player = game.players.find(p => p.id === playerId);
+
+    if (!player) {
+      throw new ServerError('Player not found', 404);
+    }
+
+    player.hiddenState = playerResults.data[0].data.state;
 
     return game;
   }

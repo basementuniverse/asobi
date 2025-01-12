@@ -7,16 +7,13 @@ import { Server } from '../server';
 import { SerialisedGame } from '../types';
 import sleep from '../utilities/sleep';
 
-export async function move(
+export async function state(
   server: Server,
   request: Request,
   response: Response
 ) {
   let token = request.headers['authorization'];
   const gameId = request.params.gameId;
-  const { moveData } = request.body as {
-    moveData?: Record<string, any>;
-  };
 
   if (!gameId) {
     throw new ServerError('Game id is required', 400);
@@ -28,17 +25,6 @@ export async function move(
 
   if (token.startsWith(constants.TOKEN_PREFIX)) {
     token = token.slice(constants.TOKEN_PREFIX.length);
-  }
-
-  // Validate move data
-  if (moveData && server.options.moveSchema) {
-    const { valid, errors } = validate(moveData, server.options.moveSchema);
-    if (!valid) {
-      throw new ServerError(
-        `Validation error (${errors.map(e => e.message).join(', ')})`,
-        400
-      );
-    }
   }
 
   // Fetch the game from jsonpad
@@ -55,25 +41,7 @@ export async function move(
     await sleep(server.options.jsonpadRateLimit);
   }
 
-  // Populate player hidden state
-  const players = await server.jsonpad.fetchItemsData(
-    server.options.jsonpadPlayersList,
-    {
-      game: gameId,
-    }
-  );
-  const playersMap = players.data.reduce(
-    (a, p) => ({
-      ...a,
-      [p.playerId]: p.state,
-    }),
-    {}
-  );
-  for (const player of game.players) {
-    player.hiddenState = playersMap[player.id];
-  }
+  const gameState = await GameService.state(server, game, token);
 
-  const updatedGame = await GameService.move(server, game, token, moveData);
-
-  response.status(200).json({ game: updatedGame });
+  response.status(200).json({ game: gameState });
 }

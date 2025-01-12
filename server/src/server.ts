@@ -70,6 +70,12 @@ export class Server {
         await controllers.move(this, request, response);
       }
     );
+    this.api.get(
+      '/state/:gameId',
+      async (request: Request, response: Response) => {
+        await controllers.state(this, request, response);
+      }
+    );
 
     // Error handling
     this.api.use(

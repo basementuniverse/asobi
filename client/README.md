@@ -13,7 +13,7 @@ npm install @basementuniverse/asobi-client
 To use it in the browser, you can include it directly from a local file or CDN.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.3.0/build/client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.4.0/build/client.js"></script>
 ```
 
 ## Usage
@@ -60,6 +60,10 @@ const { page, limit, total, games } = await client.fetchGames({
 
 // Fetch a game
 const game = await client.fetchGame('<GAME ID>');
+
+// Fetch the current state of a game using a player's token
+// This will include hidden state for the specified player
+const game = await client.fetchState('<GAME ID>', myToken);
 
 // Create a new game with the specified initial state, and join the game
 // as the first player

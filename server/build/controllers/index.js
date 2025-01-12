@@ -17,4 +17,5 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./create-game"), exports);
 __exportStar(require("./join-game"), exports);
 __exportStar(require("./move"), exports);
+__exportStar(require("./state"), exports);
 //# sourceMappingURL=index.js.map

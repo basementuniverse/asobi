@@ -501,14 +501,6 @@ class GameService {
         game.lastEventType = 'game-finished';
         // Call finishGame hook if one is defined
         game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.finishGame) === null || _b === void 0 ? void 0 : _b.call(_a, game)))) !== null && _c !== void 0 ? _c : game;
-        // Invalidate all player tokens for this game
-        await (0, async_1.asyncForEach)(game.players, async (p) => {
-            await server.jsonpad.deleteItem(server.options.jsonpadPlayersList, p.id);
-            // Handle jsonpad rate limiting
-            if (server.options.jsonpadRateLimit) {
-                await (0, sleep_1.default)(server.options.jsonpadRateLimit);
-            }
-        });
         // Remove timeouts for this game
         for (const player of game.players) {
             if (TURN_TIMEOUTS[player.id]) {
@@ -526,6 +518,39 @@ class GameService {
             const updatedGameItem = await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(game));
             return this.dataToGame(updatedGameItem.id, updatedGameItem.data);
         }
+        return game;
+    }
+    /**
+     * Fetch a game with a player's hidden state attached
+     */
+    static async state(server, game, token) {
+        // Check if the game is running
+        if (![types_1.GameStatus.WAITING_TO_START, types_1.GameStatus.STARTED].includes(game.status)) {
+            throw new error_1.default('Game is not waiting to start or running', 403);
+        }
+        // Find out which player is requesting their state in this game based on the token
+        const playerResults = await server.jsonpad.fetchItems(server.options.jsonpadPlayersList, {
+            limit: 1,
+            game: game.id,
+            token,
+            includeData: true,
+        });
+        if (playerResults.total === 0) {
+            // No player found with this token
+            throw new error_1.default('Invalid player token', 403);
+        }
+        if (playerResults.data[0].data.gameId !== game.id ||
+            playerResults.data[0].data.token !== token) {
+            // Game id or token doesn't match
+            throw new error_1.default('Invalid player token', 403);
+        }
+        // Get the player's data from the game
+        const playerId = playerResults.data[0].data.playerId;
+        const player = game.players.find(p => p.id === playerId);
+        if (!player) {
+            throw new error_1.default('Player not found', 404);
+        }
+        player.hiddenState = playerResults.data[0].data.state;
         return game;
     }
 }

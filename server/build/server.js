@@ -66,6 +66,9 @@ class Server {
         this.api.post('/move/:gameId', async (request, response) => {
             await controllers.move(this, request, response);
         });
+        this.api.get('/state/:gameId', async (request, response) => {
+            await controllers.state(this, request, response);
+        });
         // Error handling
         this.api.use((error, request, response, next) => {
             var _a;

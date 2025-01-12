@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battleships Example</title>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.4.0/build/client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/vec@2.1.0/vec.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/utils@1.7.0/utils.min.js"></script>
+<style>
+
+label {
+  display: inline-block;
+  min-width: 100px;
+}
+
+.hint {
+  font-size: 0.8em;
+  font-style: italic;
+}
+
+textarea {
+  width: 300px;
+  min-height: 100px;
+  resize: vertical;
+}
+
+canvas {
+  width: 300px;
+  height: 300px;
+  border: 2px solid #333;
+  border-radius: 5px;
+}
+
+.carrier-option {
+  background-color: blue;
+  color: white;
+}
+
+.battleship-option {
+  background-color: green;
+  color: white;
+}
+
+.cruiser-option {
+  background-color: red;
+  color: white;
+}
+
+.submarine-option {
+  background-color: purple;
+  color: white;
+}
+
+.destroyer-option {
+  background-color: orange;
+  color: white;
+}
+
+</style>
+<script>
+
+const JSONPAD_CLIENT_TOKEN = '<YOUR JSONPAD CLIENT TOKEN>';
+const JSONPAD_GAMES_LIST = '<YOUR JSONPAD GAMES LIST PATH NAME>';
+
+const CANVAS_WIDTH = 300;
+const CANVAS_HEIGHT = 300;
+
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 10;
+
+const SHIP_LENGTHS = {
+  carrier: 5,
+  battleship: 4,
+  cruiser: 3,
+  submarine: 3,
+  destroyer: 2,
+};
+
+const SHIP_COLOURS = {
+  carrier: 'blue',
+  battleship: 'green',
+  cruiser: 'red',
+  submarine: 'purple',
+  destroyer: 'orange',
+};
+
+let n;
+let canvas;
+let context;
+let description;
+let message;
+let nameInput;
+let shipsInput;
+let ships = {
+  carrier: { position: null, orientation: null },
+  battleship: { position: null, orientation: null },
+  cruiser: { position: null, orientation: null },
+  submarine: { position: null, orientation: null },
+  destroyer: { position: null, orientation: null },
+};
+
+const client = new AsobiClient({
+  jsonpadClientToken: JSONPAD_CLIENT_TOKEN,
+  jsonpadGamesList: JSONPAD_GAMES_LIST,
+  asobiServerUrl: '<YOUR ASOBI SERVER URL>',
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  const queryString = window.location.search;
+
+  if (!queryString) {
+    console.error('Missing parameters');
+    return;
+  }
+
+  const urlParams = new URLSearchParams(queryString);
+
+  if (!urlParams.has('n')) {
+    console.error('Missing number of players');
+    return;
+  }
+
+  n = parseInt(urlParams.get('n'));
+
+  canvas = document.getElementById('game');
+  context = canvas.getContext('2d');
+
+  description = document.getElementById('description');
+  message = document.getElementById('message');
+  nameInput = document.getElementById('name');
+  shipsInput = document.getElementById('ships');
+
+  description.textContent = `Start a new game with ${n} players. Set up your ships by clicking on the grid.`;
+
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+
+  draw(context);
+
+  // Handle player click on the canvas
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const cellWidth = CANVAS_WIDTH / BOARD_WIDTH;
+    const cellHeight = CANVAS_HEIGHT / BOARD_HEIGHT;
+
+    const cellX = Math.floor(x / cellWidth);
+    const cellY = Math.floor(y / cellHeight);
+
+    const found = positionHasShip(vec2(cellX, cellY));
+    if (found === null) {
+      ships[shipsInput.value].position = vec2(cellX, cellY);
+
+      if (ships[shipsInput.value].orientation === null) {
+        ships[shipsInput.value].orientation = 'h';
+      }
+    } else {
+      shipsInput.value = found;
+
+      ships[shipsInput.value].orientation =
+        ships[shipsInput.value].orientation === 'h' ? 'v' : 'h';
+    }
+
+    draw(context);
+
+    if (!checkShips()) {
+      message.textContent = 'Place all ships';
+      return;
+    }
+
+    if (!checkShipOverlaps()) {
+      message.textContent = 'Ships cannot overlap';
+      return;
+    }
+
+    if (!checkShipsWithinBounds()) {
+      message.textContent = 'Ships must be within the board';
+      return;
+    }
+
+    message.textContent = 'Ready to start';
+  });
+});
+
+// Render the canvas
+function draw(context) {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.save();
+
+  const cellWidth = CANVAS_WIDTH / BOARD_WIDTH;
+  const cellHeight = CANVAS_HEIGHT / BOARD_HEIGHT;
+
+  // Grid
+  context.strokeStyle = '#999';
+  context.lineWidth = 2;
+  for (let x = 0; x < BOARD_WIDTH; x++) {
+    line(context, vec2(x * cellWidth, 0), vec2(x * cellWidth, CANVAS_HEIGHT));
+  }
+  for (let y = 0; y < BOARD_HEIGHT; y++) {
+    line(context, vec2(0, y * cellHeight), vec2(CANVAS_WIDTH, y * cellHeight));
+  }
+
+  // Ships
+  for (const [ship, data] of Object.entries(ships)) {
+    if (data.position === null || data.orientation === null) {
+      continue;
+    }
+
+    const bb = shipBoundingBox(ship, data.position, data.orientation);
+    rect(
+      context,
+      vec2(bb.x1 * cellWidth, bb.y1 * cellHeight),
+      vec2((bb.x2 - bb.x1) * cellWidth,
+      (bb.y2 - bb.y1) * cellHeight),
+      SHIP_COLOURS[ship]
+    );
+  }
+
+  context.restore();
+}
+
+// Draw a line from a to b
+function line(context, a, b) {
+  context.beginPath();
+  context.moveTo(a.x, a.y);
+  context.lineTo(b.x, b.y);
+  context.stroke();
+}
+
+// Draw a rectangle at position with size and color
+function rect(context, position, size, color) {
+  context.fillStyle = color;
+  context.fillRect(position.x, position.y, size.x, size.y);
+}
+
+// Check if a position p has a ship and return the ship name if so
+function positionHasShip(p) {
+  for (const [ship, data] of Object.entries(ships)) {
+    if (data.position === null || data.orientation === null) {
+      continue;
+    }
+
+    const bb = shipBoundingBox(ship, data.position, data.orientation);
+    if (pointInBoundingBox(p, bb)) {
+      return ship;
+    }
+  }
+
+  return null;
+}
+
+// Get the bounding box for a ship at position p with orientation o
+function shipBoundingBox(ship, p, o) {
+  if (o === 'h') {
+    return {
+      x1: p.x,
+      x2: p.x + SHIP_LENGTHS[ship],
+      y1: p.y,
+      y2: p.y + 1,
+    };
+  }
+
+  return {
+    x1: p.x,
+    x2: p.x + 1,
+    y1: p.y,
+    y2: p.y + SHIP_LENGTHS[ship],
+  };
+}
+
+// Check if a point p is inside a bounding box bb
+function pointInBoundingBox(p, bb) {
+  return (
+    p.x >= bb.x1 &&
+    p.x < bb.x2 &&
+    p.y >= bb.y1 &&
+    p.y < bb.y2
+  );
+}
+
+// Check if 2 1d intervals [a1, a2] and [b1, b2] overlap
+function intervalsOverlap(a1, a2, b1, b2) {
+  return Math.max(a1, b1) < Math.min(a2, b2);
+}
+
+// Check if 2 2d bounding boxes overlap
+function boundingBoxesOverlap(bb1, bb2) {
+  return (
+    intervalsOverlap(bb1.x1, bb1.x2, bb2.x1, bb2.x2) &&
+    intervalsOverlap(bb1.y1, bb1.y2, bb2.y1, bb2.y2)
+  );
+}
+
+// Make sure all ship positions and orientations are set
+// Returns true if all ships are positioned and oriented
+function checkShips() {
+  return Object.values(ships).every(
+    ship => ship.position !== null && ship.orientation !== null
+  );
+}
+
+// Make sure no ships overlap
+// Returns true if no overlaps found
+function checkShipOverlaps() {
+  const shipBoundingBoxes = Object
+    .entries(ships)
+    .map(
+      ([ship, data]) => data.position !== null && data.orientation !== null
+        ? shipBoundingBox(ship, data.position, data.orientation)
+        : null
+    )
+    .filter(Boolean);
+
+  for (let i = 0; i < shipBoundingBoxes.length; i++) {
+    for (let j = i + 1; j < shipBoundingBoxes.length; j++) {
+      const bb1 = shipBoundingBoxes[i];
+      const bb2 = shipBoundingBoxes[j];
+
+      if (boundingBoxesOverlap(bb1, bb2)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+// Make sure all ships are fully within the game board
+// Returns true if all ships are within bounds
+function checkShipsWithinBounds() {
+  const shipBoundingBoxes = Object
+    .entries(ships)
+    .map(
+      ([ship, data]) => data.position !== null && data.orientation !== null
+        ? shipBoundingBox(ship, data.position, data.orientation)
+        : null
+    )
+    .filter(Boolean);
+
+  for (const bb of shipBoundingBoxes) {
+    if (
+      bb.x1 < 0 ||
+      bb.x2 > BOARD_WIDTH ||
+      bb.y1 < 0 ||
+      bb.y2 > BOARD_HEIGHT
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Generate a random board setup
+function randomiseGrid() {
+  const rp = () => vec2(
+    Math.floor(Math.random() * BOARD_WIDTH),
+    Math.floor(Math.random() * BOARD_HEIGHT)
+  );
+  const ro = () => Math.random() < 0.5 ? 'h' : 'v';
+
+  const MAX_ATTEMPTS = 1000;
+  let i = 0;
+  do {
+    ships = {
+      carrier: { position: rp(), orientation: ro() },
+      battleship: { position: rp(), orientation: ro() },
+      cruiser: { position: rp(), orientation: ro() },
+      submarine: { position: rp(), orientation: ro() },
+      destroyer: { position: rp(), orientation: ro() },
+    };
+  } while (
+    (
+      !checkShips() ||
+      !checkShipOverlaps() ||
+      !checkShipsWithinBounds()
+    ) && i++ < MAX_ATTEMPTS
+  );
+
+  draw(context);
+}
+
+// Start a game
+function start() {
+  if (!checkShips()) {
+    console.error('Place all ships');
+    return;
+  }
+
+  if (!checkShipOverlaps()) {
+    console.error('Ships cannot overlap');
+    return;
+  }
+
+  if (!checkShipsWithinBounds()) {
+    console.error('Ships must be within the board');
+    return;
+  }
+
+  console.log(nameInput.value, ships);
+
+  client.createGame(
+    nameInput.value,
+    {
+      ships,
+    },
+    undefined,
+    n
+  ).then(([game, token]) => {
+    console.log(game, token);
+    window.location.href = `play.html?id=${game.id}&token=${token}&name=${nameInput.value}`;
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+</script>
+</head>
+<body>
+  <h1>Battleships - Start a new game</h1>
+  <p id="description"></p>
+  <hr>
+  <p>
+    <label for="name">Your name:</label>
+    <input type="text" id="name" placeholder="Your name" value="Player 1">
+  </p>
+  <select id="ships">
+    <option value="carrier" class="carrier-option">Carrier (5)</option>
+    <option value="battleship" class="battleship-option">Battleship (4)</option>
+    <option value="cruiser" class="cruiser-option">Cruiser (3)</option>
+    <option value="submarine" class="submarine-option">Submarine (3)</option>
+    <option value="destroyer" class="destroyer-option">Destroyer (2)</option>
+  </select>
+  <br>
+  <div id="message"></div>
+  <canvas id="game"></canvas>
+  <br>
+  <button id="randomise" onclick="randomiseGrid()">Randomise ships</button>
+  <hr>
+  <button id="start" onclick="start()">Start new game</button>
+</body>
+</html>

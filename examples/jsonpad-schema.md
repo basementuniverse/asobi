@@ -301,7 +301,7 @@ The server token needs to be able to read and write items in the games list.
 ]
 ```
 
-If we're using a player tokens list, then the server token also needs to be able to read, write, and delete items in this list.
+The server token also needs to be able to read and write items in the players list.
 
 ```json
 [
@@ -341,17 +341,6 @@ If we're using a player tokens list, then the server token also needs to be able
     "resourceType": "item",
     "listIds": [
       "<GAMES LIST ID>",
-      "<PLAYERS LIST ID>"
-    ],
-    "itemIds": [
-      "*"
-    ]
-  },
-  {
-    "mode": "allow",
-    "action": "delete",
-    "resourceType": "item",
-    "listIds": [
       "<PLAYERS LIST ID>"
     ],
     "itemIds": [

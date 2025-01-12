@@ -33,4 +33,8 @@ export default class GameService {
      * Finish a game
      */
     static finishGame(server: Server, game: Game, save?: boolean): Promise<Game>;
+    /**
+     * Fetch a game with a player's hidden state attached
+     */
+    static state(server: Server, game: Game, token: string): Promise<Game>;
 }

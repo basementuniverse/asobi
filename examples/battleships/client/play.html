@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battleships Example</title>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.4.0/build/client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/vec@2.1.0/vec.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/utils@1.7.0/utils.min.js"></script>
+<style>
+
+canvas {
+  width: 600px;
+  height: 600px;
+  border: 2px solid #333;
+  border-radius: 5px;
+}
+
+</style>
+<script>
+
+const JSONPAD_CLIENT_TOKEN = '<YOUR JSONPAD CLIENT TOKEN>';
+const JSONPAD_GAMES_LIST = '<YOUR JSONPAD GAMES LIST PATH NAME>';
+
+const CANVAS_WIDTH = 600;
+const CANVAS_HEIGHT = 600;
+
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 10;
+
+const SHIP_COLOURS = {
+  carrier: 'blue',
+  battleship: 'green',
+  cruiser: 'red',
+  submarine: 'purple',
+  destroyer: 'orange',
+};
+
+let canvas;
+let context;
+let message;
+let playerPoints;
+
+let id;
+let game;
+let token;
+let playerId;
+let playerName;
+let playerGrid = [];
+
+const client = new AsobiClient({
+  jsonpadClientToken: JSONPAD_CLIENT_TOKEN,
+  jsonpadGamesList: JSONPAD_GAMES_LIST,
+  asobiServerUrl: '<YOUR ASOBI SERVER URL>',
+});
+
+// When the page has finished loading...
+window.addEventListener('DOMContentLoaded', () => {
+  // Set up the canvas
+  canvas = document.getElementById('game');
+  context = canvas.getContext('2d');
+
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+
+  // Do initial render
+  draw(context);
+
+  // Get a reference to some output elements
+  message = document.getElementById('message');
+  playerPoints = document.getElementById('player-points');
+
+  // Get some parameters from the URL
+  const queryString = window.location.search;
+  if (!queryString) {
+    console.error('Missing parameters');
+    return;
+  }
+
+  const urlParams = new URLSearchParams(queryString);
+  if (
+    !urlParams.has('id') ||
+    !urlParams.has('token') ||
+    !urlParams.has('name')
+  ) {
+    console.error('Missing parameters');
+    return;
+  }
+
+  id = urlParams.get('id');
+  token = urlParams.get('token');
+  playerName = urlParams.get('name');
+
+  // Fetch the game state (we use fetchState instead of fetchGame here so that we can
+  // include the player token and get hidden player state for the current player)
+  client.fetchState(id, token).then(currentGame => {
+    if (!currentGame) {
+      console.error('Game not found');
+      return;
+    }
+
+    game = currentGame;
+    playerId = game.players.find(
+      p => p.name === urlParams.get('name')
+    ).id;
+
+    // Only the player whose token we provided will have hidden state, so this is safe
+    // (players can bodge the name parameter if they want, but they won't be able to
+    // see the hidden state of other players; it'll just break their client)
+    playerGrid = game.players.find(
+      p => p.id === playerId
+    ).hiddenState.grid;
+
+    // Check if the game has started
+    if (game.status !== 'started') {
+      console.error('Game not in started yet: ', game.status);
+      message.innerHTML = 'Waiting for players to join...';
+
+      // Render the game
+      draw(context);
+      return;
+    }
+
+    // Display a message showing whose turn it is
+    let currentPlayerName = game.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === playerName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+    message.innerText = `It\'s ${currentPlayerName} turn.`;
+
+    // Show player points
+    playerPoints.innerText = game.players.map(player => {
+      return `${player.name}: ${player.state.remainingTiles}`;
+    }).join('\n');
+
+    // Render the game
+    draw(context);
+  }).catch(error => {
+    console.error('Error:', error);
+  });
+
+  // The game started
+  client.addEventListener('game-created', event => {
+    if (!game) {
+      return;
+    }
+
+    // We're only interested in events for the current game
+    if (event.detail.id !== game.id) {
+      return;
+    }
+
+    console.log('Game started:', event.detail);
+
+    game = event.detail;
+
+    // Display a message showing whose turn it is
+    let currentPlayerName = game.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === playerName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+    message.innerHTML = `Game started!<br>It's ${currentPlayerName} turn.`;
+
+    // Show player points
+    playerPoints.innerText = game.players.map(player => {
+      return `${player.name}: ${player.state.remainingTiles}`;
+    }).join('\n');
+
+    // Render the game
+    draw(context);
+  });
+
+  // The game finished
+  client.addEventListener('game-finished', event => {
+    if (!game) {
+      return;
+    }
+
+    // We're only interested in events for the current game
+    if (event.detail.id !== game.id) {
+      return;
+    }
+
+    console.log('Game finished:', event.detail);
+
+    game = event.detail;
+
+    // Display a message showing who won
+    let winningPlayerName = game.players.find(
+      p => p.id === game.state.winner
+    )?.name ?? 'Unknown';
+    if (winningPlayerName === playerName) {
+      winningPlayerName = 'You';
+    }
+    message.innerHTML = `Game finished!<br>${winningPlayerName} won.`;
+
+    // Show player points
+    playerPoints.innerText = game.players.map(player => {
+      return `${player.name}: ${player.state.remainingTiles}`;
+    }).join('\n');
+
+    // Render the game
+    draw(context);
+  });
+
+  // A player joined the game
+  client.addEventListener('player-joined', event => {
+    if (!game) {
+      return;
+    }
+
+    // We're only interested in events for the current game
+    if (event.detail.id !== game.id) {
+      return;
+    }
+
+    console.log('Player joined:', event.detail);
+
+    game = event.detail;
+
+    // Display a message showing whose turn it is
+    let currentPlayerName = game.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === playerName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+    message.innerHTML = `${game.lastEventData.name} joined the game!<br>It\'s ${currentPlayerName} turn.`;
+
+    // Show player points
+    playerPoints.innerText = game.players.map(player => {
+      return `${player.name}: ${player.state.remainingTiles}`;
+    }).join('\n');
+
+    // Render the game
+    draw(context);
+  });
+
+  // A player made a move
+  client.addEventListener('player-moved', event => {
+    if (!game) {
+      return;
+    }
+
+    // We're only interested in events for the current game
+    if (event.detail.id !== game.id) {
+      return;
+    }
+
+    console.log('Player moved:', event.detail);
+
+    game = event.detail;
+
+    // Display a message showing whose turn it is
+    let currentPlayerName = game.players.find(
+      p => p.status === 'taking_turn'
+    )?.name ?? 'Unknown';
+    if (currentPlayerName === playerName) {
+      currentPlayerName = 'your';
+    } else {
+      currentPlayerName = `${currentPlayerName}'s`;
+    }
+
+    // Display a message showing the result of the move
+    let shootingPlayerName = game.players.find(
+      p => p.id === game.lastEventData.shootingPlayer
+    )?.name ?? 'Unknown';
+    if (shootingPlayerName === playerName) {
+      shootingPlayerName = 'You';
+    }
+    let shotMessage = `${shootingPlayerName} shot at (${game.lastEventData.data.x}, ${game.lastEventData.data.y})`;
+    if (game.lastEventData.hitPlayer) {
+      let hitPlayerName = game.players.find(
+        p => p.id === game.lastEventData.hitPlayer
+      )?.name ?? 'Unknown';
+      if (hitPlayerName === playerName) {
+        hitPlayerName = 'your';
+      } else {
+        hitPlayerName = `${hitPlayerName}'s`;
+      }
+      shotMessage += ` and hit ${hitPlayerName} ${game.lastEventData.hitShip}`;
+
+      if (game.lastEventData.sunkShip) {
+        shotMessage += ` and sunk it!`;
+      }
+    } else {
+      shotMessage += ` and missed.`;
+    }
+    message.innerHTML = `${shotMessage}<br>It\'s ${currentPlayerName} turn.`;
+
+    // Show player points
+    playerPoints.innerText = game.players.map(player => {
+      return `${player.name}: ${player.state.remainingTiles}`;
+    }).join('\n');
+
+    // Re-fetch the game state with player hidden state attached
+    client.fetchState(id, token).then(currentGame => {
+      if (!currentGame) {
+        console.error('Game not found');
+        return;
+      }
+
+      game = currentGame;
+
+      // Update the local state of the current player's grid
+      playerGrid = game.players.find(
+        p => p.id === playerId
+      ).hiddenState.grid;
+
+      // Render the game
+      draw(context);
+    }).catch(error => {
+      console.error('Error:', error);
+    });
+  });
+
+  // Handle player click on the canvas
+  canvas.addEventListener('click', event => {
+    if (!game) {
+      return;
+    }
+
+    if (game.status !== 'started') {
+      return;
+    }
+
+    // Get the cell that was clicked
+    const x = Math.floor(event.offsetX / (CANVAS_WIDTH / (BOARD_WIDTH * 2)));
+    const y = Math.floor(event.offsetY / (CANVAS_HEIGHT / (BOARD_HEIGHT * 2)));
+
+    // Make sure we're not trying to shoot at a position that has already been
+    // shot at (the server will refuse the move and the player will forfeit
+    // their turn)
+    if (game.state.shots.find(
+      s => s.position.x === x && s.position.y === y
+    )) {
+      return;
+    }
+
+    // Send the move to the server
+    client.move(
+      game.id,
+      token,
+      { x, y }
+    ).then(currentGame => {
+      game = currentGame;
+
+      // Update the local state of the current player's grid
+      playerGrid = game.players.find(
+        p => p.id === playerId
+      ).hiddenState.grid;
+    }).catch(error => {
+      console.error('Error:', error);
+    });
+  });
+});
+
+// Render the canvas
+function draw(context) {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.save();
+
+  const cellWidth = CANVAS_WIDTH / (BOARD_WIDTH * 2);
+  const cellHeight = CANVAS_HEIGHT / (BOARD_HEIGHT * 2);
+
+  // Grid
+  context.strokeStyle = '#999';
+  context.lineWidth = 2;
+  for (let x = 0; x < BOARD_WIDTH * 2; x++) {
+    line(context, vec2(x * cellWidth, 0), vec2(x * cellWidth, CANVAS_HEIGHT));
+  }
+  for (let y = 0; y < BOARD_HEIGHT * 2; y++) {
+    line(context, vec2(0, y * cellHeight), vec2(CANVAS_WIDTH, y * cellHeight));
+  }
+
+  // Make sure we're ready to render a game state
+  if (
+    !game ||
+    !playerId ||
+    !playerGrid
+  ) {
+    return;
+  }
+
+  // Get the current player's region offset
+  const offset = game.players.find(
+    p => p.id === playerId
+  )?.state?.offset;
+
+  // If there's no offset, then not all players have joined
+  // (meaning we haven't assigned player regions yet)
+  if (!offset) {
+    return;
+  }
+
+  context.save();
+  context.translate(
+    offset.x * cellWidth * BOARD_WIDTH,
+    offset.y * cellHeight * BOARD_HEIGHT
+  );
+
+  // Current player grid
+  for (const [i, ship] of playerGrid.entries()) {
+    if (ship === null) {
+      continue;
+    }
+
+    const position = vec2.fromComponents(pos(i, BOARD_WIDTH));
+
+    rect(
+      context,
+      vec2(
+        position.x * cellWidth,
+        position.y * cellHeight
+      ),
+      vec2(cellWidth, cellHeight),
+      SHIP_COLOURS[ship]
+    );
+  }
+
+  context.restore();
+
+  // Draw shots
+  for (const shot of game.state.shots) {
+    const position = vec2(
+      shot.position.x * cellWidth,
+      shot.position.y * cellHeight
+    );
+
+    if (shot.hitPlayer) {
+      cross(context, position, vec2(cellWidth, cellHeight), 'red');
+    } else {
+      cross(context, position, vec2(cellWidth, cellHeight), 'black');
+    }
+  }
+
+  context.restore();
+}
+
+// Draw a line from a to b
+function line(context, a, b) {
+  context.beginPath();
+  context.moveTo(a.x, a.y);
+  context.lineTo(b.x, b.y);
+  context.stroke();
+}
+
+// Draw a rectangle at position with size and color
+function rect(context, position, size, color) {
+  context.fillStyle = color;
+  context.fillRect(position.x, position.y, size.x, size.y);
+}
+
+// Draw a cross at position with size and color
+function cross(context, position, size, color) {
+  context.strokeStyle = color;
+  context.lineWidth = 3;
+  context.beginPath();
+  context.moveTo(position.x, position.y);
+  context.lineTo(position.x + size.x, position.y + size.y);
+  context.moveTo(position.x + size.x, position.y);
+  context.lineTo(position.x, position.y + size.y);
+  context.stroke();
+}
+
+</script>
+</head>
+<body>
+  <h1>Battleships</h1>
+  <div id="message"></div>
+  <canvas id="game"></canvas>
+  <pre id="player-points"></pre>
+</body>
+</html>

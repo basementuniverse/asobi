@@ -56,12 +56,17 @@ export async function joinGame(
   const playersMap = players.data.reduce(
     (a, p) => ({
       ...a,
-      [p.id]: p,
+      [p.playerId]: p.state,
     }),
     {}
   );
   for (const player of game.players) {
-    player.hiddenState = playersMap[player.id]?.state;
+    player.hiddenState = playersMap[player.id];
+  }
+
+  // Handle jsonpad rate limiting
+  if (server.options.jsonpadRateLimit) {
+    await sleep(server.options.jsonpadRateLimit);
   }
 
   const [updatedGame, token] = await GameService.joinGame(

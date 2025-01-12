@@ -130,6 +130,34 @@ export class Client extends EventTarget {
   }
 
   /**
+   * Make a move in a game
+   */
+  public async fetchState(gameId: string, token: string): Promise<Game> {
+    const response = await fetch(
+      `${this.options.asobiServerUrl}/state/${gameId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const json = await response.json();
+
+    return {
+      ...json.game,
+      startedAt: json.game.startedAt ? new Date(json.game.startedAt) : null,
+      finishedAt: json.game.finishedAt ? new Date(json.game.finishedAt) : null,
+    };
+  }
+
+  /**
    * Create a new game with the specified player as Player 1
    */
   public async createGame(

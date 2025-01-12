@@ -9,7 +9,6 @@ const error_1 = __importDefault(require("../error"));
 const game_service_1 = __importDefault(require("../game-service"));
 const sleep_1 = __importDefault(require("../utilities/sleep"));
 async function joinGame(server, request, response) {
-    var _a;
     const gameId = request.params.gameId;
     const { playerName, playerData } = request.body;
     if (!gameId) {
@@ -34,10 +33,14 @@ async function joinGame(server, request, response) {
     });
     const playersMap = players.data.reduce((a, p) => ({
         ...a,
-        [p.id]: p,
+        [p.playerId]: p.state,
     }), {});
     for (const player of game.players) {
-        player.hiddenState = (_a = playersMap[player.id]) === null || _a === void 0 ? void 0 : _a.state;
+        player.hiddenState = playersMap[player.id];
+    }
+    // Handle jsonpad rate limiting
+    if (server.options.jsonpadRateLimit) {
+        await (0, sleep_1.default)(server.options.jsonpadRateLimit);
     }
     const [updatedGame, token] = await game_service_1.default.joinGame(server, game, playerName, playerData);
     response.status(200).json({ game: updatedGame, token });
