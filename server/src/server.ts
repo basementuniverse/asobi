@@ -6,6 +6,7 @@ import http from 'http';
 import * as constants from './constants';
 import * as controllers from './controllers';
 import ServerError from './error';
+import QueueService from './services/queue-service';
 import { GameMode, ServerOptions } from './types';
 
 export class Server {
@@ -107,6 +108,9 @@ export class Server {
     this.server = this.api.listen(actualPort, () => {
       console.log(`Server listening on port ${actualPort}`);
     });
+
+    // Start checking queues
+    QueueService.startCheck();
   }
 
   /**
@@ -117,5 +121,8 @@ export class Server {
       this.server.close();
       console.log('Server stopped');
     }
+
+    // Stop checking queues
+    QueueService.stopCheck();
   }
 }

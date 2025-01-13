@@ -39,14 +39,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const async_1 = require("@basementuniverse/async");
 const utils_1 = require("@basementuniverse/utils");
 const uuid_1 = require("uuid");
-const constants = __importStar(require("./constants"));
-const error_1 = __importDefault(require("./error"));
-const types_1 = require("./types");
-const generate_token_1 = __importDefault(require("./utilities/generate-token"));
-const sleep_1 = __importDefault(require("./utilities/sleep"));
-const TURN_TIMEOUTS = {};
-const ROUND_TIMEOUTS = {};
-const GAME_TIMEOUTS = {};
+const constants = __importStar(require("../constants"));
+const error_1 = __importDefault(require("../error"));
+const types_1 = require("../types");
+const generate_token_1 = __importDefault(require("../utilities/generate-token"));
+const sleep_1 = __importDefault(require("../utilities/sleep"));
 class GameService {
     /**
      * Convert a game to serialisable data
@@ -267,7 +264,7 @@ class GameService {
                 // If a turn time limit is defined, set a timeout for the current player
                 if (server.options.turnTimeLimit) {
                     const timeLimit = Math.max(server.options.turnTimeLimit * constants.MS, constants.MIN_TIMEOUT);
-                    TURN_TIMEOUTS[firstPlayer.id] = setTimeout(async () => {
+                    this.turnTimeouts[firstPlayer.id] = setTimeout(async () => {
                         game.lastEventType = 'timed-out';
                         const updatedGame = this.advanceGame(server, game, firstPlayer);
                         await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
@@ -283,7 +280,7 @@ class GameService {
                 // If a round time limit is defined, set a timeout for the current round
                 if (server.options.roundTimeLimit) {
                     const timeLimit = Math.max(server.options.roundTimeLimit * constants.MS, constants.MIN_TIMEOUT);
-                    ROUND_TIMEOUTS[game.id] = setTimeout(async () => {
+                    this.roundTimeouts[game.id] = setTimeout(async () => {
                         game.lastEventType = 'timed-out';
                         game.round++;
                         game.players.forEach(p => {
@@ -303,7 +300,7 @@ class GameService {
         // If a game time limit is defined, set a timeout for the game
         if (server.options.gameTimeLimit) {
             const timeLimit = Math.max(server.options.gameTimeLimit * constants.MS, constants.MIN_TIMEOUT);
-            GAME_TIMEOUTS[game.id] = setTimeout(async () => {
+            this.gameTimeouts[game.id] = setTimeout(async () => {
                 game.lastEventType = 'timed-out';
                 const finishedGame = await this.finishGame(server, game);
                 await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(finishedGame));
@@ -448,10 +445,10 @@ class GameService {
                 // If a turn time limit is defined, set a timeout for the current player
                 if (server.options.turnTimeLimit) {
                     const timeLimit = server.options.turnTimeLimit * constants.MS;
-                    if (TURN_TIMEOUTS[player.id]) {
-                        clearTimeout(TURN_TIMEOUTS[player.id]);
+                    if (this.turnTimeouts[player.id]) {
+                        clearTimeout(this.turnTimeouts[player.id]);
                     }
-                    TURN_TIMEOUTS[player.id] = setTimeout(async () => {
+                    this.turnTimeouts[player.id] = setTimeout(async () => {
                         game.lastEventType = 'timed-out';
                         const updatedGame = this.advanceGame(server, game, nextPlayer);
                         await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
@@ -471,10 +468,10 @@ class GameService {
                     // If a round time limit is defined, set a timeout for the current round
                     if (server.options.roundTimeLimit) {
                         const timeLimit = server.options.roundTimeLimit * constants.MS;
-                        if (ROUND_TIMEOUTS[game.id]) {
-                            clearTimeout(ROUND_TIMEOUTS[game.id]);
+                        if (this.roundTimeouts[game.id]) {
+                            clearTimeout(this.roundTimeouts[game.id]);
                         }
-                        ROUND_TIMEOUTS[game.id] = setTimeout(async () => {
+                        this.roundTimeouts[game.id] = setTimeout(async () => {
                             game.lastEventType = 'timed-out';
                             game.players.forEach(p => {
                                 p.status = types_1.PlayerStatus.WAITING_FOR_TURN;
@@ -503,15 +500,15 @@ class GameService {
         game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.finishGame) === null || _b === void 0 ? void 0 : _b.call(_a, game)))) !== null && _c !== void 0 ? _c : game;
         // Remove timeouts for this game
         for (const player of game.players) {
-            if (TURN_TIMEOUTS[player.id]) {
-                clearTimeout(TURN_TIMEOUTS[player.id]);
+            if (this.turnTimeouts[player.id]) {
+                clearTimeout(this.turnTimeouts[player.id]);
             }
         }
-        if (ROUND_TIMEOUTS[game.id]) {
-            clearTimeout(ROUND_TIMEOUTS[game.id]);
+        if (this.roundTimeouts[game.id]) {
+            clearTimeout(this.roundTimeouts[game.id]);
         }
-        if (GAME_TIMEOUTS[game.id]) {
-            clearTimeout(GAME_TIMEOUTS[game.id]);
+        if (this.gameTimeouts[game.id]) {
+            clearTimeout(this.gameTimeouts[game.id]);
         }
         // Save the game in jsonpad
         if (save) {
@@ -554,5 +551,8 @@ class GameService {
         return game;
     }
 }
+GameService.turnTimeouts = {};
+GameService.roundTimeouts = {};
+GameService.gameTimeouts = {};
 exports.default = GameService;
 //# sourceMappingURL=game-service.js.map

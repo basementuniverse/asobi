@@ -44,6 +44,7 @@ require("express-async-errors");
 const constants = __importStar(require("./constants"));
 const controllers = __importStar(require("./controllers"));
 const error_1 = __importDefault(require("./error"));
+const queue_service_1 = __importDefault(require("./services/queue-service"));
 const types_1 = require("./types");
 class Server {
     constructor(options) {
@@ -89,6 +90,8 @@ class Server {
         this.server = this.api.listen(actualPort, () => {
             console.log(`Server listening on port ${actualPort}`);
         });
+        // Start checking queues
+        queue_service_1.default.startCheck();
     }
     /**
      * Stop the server
@@ -98,6 +101,8 @@ class Server {
             this.server.close();
             console.log('Server stopped');
         }
+        // Stop checking queues
+        queue_service_1.default.stopCheck();
     }
 }
 exports.Server = Server;

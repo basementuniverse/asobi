@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createGame = createGame;
 const jsonschema_1 = require("jsonschema");
 const error_1 = __importDefault(require("../error"));
-const game_service_1 = __importDefault(require("../game-service"));
+const game_service_1 = __importDefault(require("../services/game-service"));
 async function createGame(server, request, response) {
     const { playerName, playerData, gameData, numPlayers } = request.body;
     // Validate player data

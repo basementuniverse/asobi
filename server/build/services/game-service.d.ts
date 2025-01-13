@@ -1,6 +1,9 @@
-import { Server } from './server';
-import { Game } from './types';
+import { Server } from '../server';
+import { Game } from '../types';
 export default class GameService {
+    private static turnTimeouts;
+    private static roundTimeouts;
+    private static gameTimeouts;
     /**
      * Convert a game to serialisable data
      */

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { validate } from 'jsonschema';
 import ServerError from '../error';
-import GameService from '../game-service';
 import { Server } from '../server';
+import GameService from '../services/game-service';
 
 export async function createGame(
   server: Server,

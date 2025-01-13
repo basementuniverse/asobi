@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
-import { validate } from 'jsonschema';
 import * as constants from '../constants';
 import ServerError from '../error';
-import GameService from '../game-service';
 import { Server } from '../server';
+import GameService from '../services/game-service';
 import { SerialisedGame } from '../types';
 import sleep from '../utilities/sleep';
 

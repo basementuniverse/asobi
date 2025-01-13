@@ -1,9 +1,9 @@
 import { asyncForEach } from '@basementuniverse/async';
 import { clamp, exclude } from '@basementuniverse/utils';
 import { v4 as uuid } from 'uuid';
-import * as constants from './constants';
-import ServerError from './error';
-import { Server } from './server';
+import * as constants from '../constants';
+import ServerError from '../error';
+import { Server } from '../server';
 import {
   Game,
   GameMode,
@@ -11,15 +11,15 @@ import {
   Move,
   Player,
   PlayerStatus,
-} from './types';
-import generateToken from './utilities/generate-token';
-import sleep from './utilities/sleep';
-
-const TURN_TIMEOUTS: Record<string, NodeJS.Timeout> = {};
-const ROUND_TIMEOUTS: Record<string, NodeJS.Timeout> = {};
-const GAME_TIMEOUTS: Record<string, NodeJS.Timeout> = {};
+} from '../types';
+import generateToken from '../utilities/generate-token';
+import sleep from '../utilities/sleep';
 
 export default class GameService {
+  private static turnTimeouts: Record<string, NodeJS.Timeout> = {};
+  private static roundTimeouts: Record<string, NodeJS.Timeout> = {};
+  private static gameTimeouts: Record<string, NodeJS.Timeout> = {};
+
   /**
    * Convert a game to serialisable data
    */
@@ -308,7 +308,7 @@ export default class GameService {
             constants.MIN_TIMEOUT
           );
 
-          TURN_TIMEOUTS[firstPlayer.id] = setTimeout(async () => {
+          this.turnTimeouts[firstPlayer.id] = setTimeout(async () => {
             game.lastEventType = 'timed-out';
 
             const updatedGame = this.advanceGame(server, game, firstPlayer);
@@ -337,7 +337,7 @@ export default class GameService {
             constants.MIN_TIMEOUT
           );
 
-          ROUND_TIMEOUTS[game.id] = setTimeout(async () => {
+          this.roundTimeouts[game.id] = setTimeout(async () => {
             game.lastEventType = 'timed-out';
             game.round++;
             game.players.forEach(p => {
@@ -368,7 +368,7 @@ export default class GameService {
         constants.MIN_TIMEOUT
       );
 
-      GAME_TIMEOUTS[game.id] = setTimeout(async () => {
+      this.gameTimeouts[game.id] = setTimeout(async () => {
         game.lastEventType = 'timed-out';
 
         const finishedGame = await this.finishGame(server, game);
@@ -575,11 +575,11 @@ export default class GameService {
         if (server.options.turnTimeLimit) {
           const timeLimit = server.options.turnTimeLimit * constants.MS;
 
-          if (TURN_TIMEOUTS[player.id]) {
-            clearTimeout(TURN_TIMEOUTS[player.id]);
+          if (this.turnTimeouts[player.id]) {
+            clearTimeout(this.turnTimeouts[player.id]);
           }
 
-          TURN_TIMEOUTS[player.id] = setTimeout(async () => {
+          this.turnTimeouts[player.id] = setTimeout(async () => {
             game.lastEventType = 'timed-out';
 
             const updatedGame = this.advanceGame(server, game, nextPlayer);
@@ -612,11 +612,11 @@ export default class GameService {
           if (server.options.roundTimeLimit) {
             const timeLimit = server.options.roundTimeLimit * constants.MS;
 
-            if (ROUND_TIMEOUTS[game.id]) {
-              clearTimeout(ROUND_TIMEOUTS[game.id]);
+            if (this.roundTimeouts[game.id]) {
+              clearTimeout(this.roundTimeouts[game.id]);
             }
 
-            ROUND_TIMEOUTS[game.id] = setTimeout(async () => {
+            this.roundTimeouts[game.id] = setTimeout(async () => {
               game.lastEventType = 'timed-out';
               game.players.forEach(p => {
                 p.status = PlayerStatus.WAITING_FOR_TURN;
@@ -660,15 +660,15 @@ export default class GameService {
 
     // Remove timeouts for this game
     for (const player of game.players) {
-      if (TURN_TIMEOUTS[player.id]) {
-        clearTimeout(TURN_TIMEOUTS[player.id]);
+      if (this.turnTimeouts[player.id]) {
+        clearTimeout(this.turnTimeouts[player.id]);
       }
     }
-    if (ROUND_TIMEOUTS[game.id]) {
-      clearTimeout(ROUND_TIMEOUTS[game.id]);
+    if (this.roundTimeouts[game.id]) {
+      clearTimeout(this.roundTimeouts[game.id]);
     }
-    if (GAME_TIMEOUTS[game.id]) {
-      clearTimeout(GAME_TIMEOUTS[game.id]);
+    if (this.gameTimeouts[game.id]) {
+      clearTimeout(this.gameTimeouts[game.id]);
     }
 
     // Save the game in jsonpad

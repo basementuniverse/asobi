@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.state = state;
 const constants = __importStar(require("../constants"));
 const error_1 = __importDefault(require("../error"));
-const game_service_1 = __importDefault(require("../game-service"));
+const game_service_1 = __importDefault(require("../services/game-service"));
 const sleep_1 = __importDefault(require("../utilities/sleep"));
 async function state(server, request, response) {
     let token = request.headers['authorization'];

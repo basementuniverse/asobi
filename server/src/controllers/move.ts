@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import { validate } from 'jsonschema';
 import * as constants from '../constants';
 import ServerError from '../error';
-import GameService from '../game-service';
 import { Server } from '../server';
+import GameService from '../services/game-service';
+import QueueService from '../services/queue-service';
 import { SerialisedGame } from '../types';
 import sleep from '../utilities/sleep';
 
@@ -41,39 +42,42 @@ export async function move(
     }
   }
 
-  // Fetch the game from jsonpad
-  const game = GameService.dataToGame(
-    gameId,
-    await server.jsonpad.fetchItemData<SerialisedGame>(
-      server.options.jsonpadGamesList,
-      gameId
-    )
-  );
+  // Handle player moves using a queue to avoid race conditions
+  QueueService.add(gameId, async () => {
+    // Fetch the game from jsonpad
+    const game = GameService.dataToGame(
+      gameId,
+      await server.jsonpad.fetchItemData<SerialisedGame>(
+        server.options.jsonpadGamesList,
+        gameId
+      )
+    );
 
-  // Handle jsonpad rate limiting
-  if (server.options.jsonpadRateLimit) {
-    await sleep(server.options.jsonpadRateLimit);
-  }
-
-  // Populate player hidden state
-  const players = await server.jsonpad.fetchItemsData(
-    server.options.jsonpadPlayersList,
-    {
-      game: gameId,
+    // Handle jsonpad rate limiting
+    if (server.options.jsonpadRateLimit) {
+      await sleep(server.options.jsonpadRateLimit);
     }
-  );
-  const playersMap = players.data.reduce(
-    (a, p) => ({
-      ...a,
-      [p.playerId]: p.state,
-    }),
-    {}
-  );
-  for (const player of game.players) {
-    player.hiddenState = playersMap[player.id];
-  }
 
-  const updatedGame = await GameService.move(server, game, token, moveData);
+    // Populate player hidden state
+    const players = await server.jsonpad.fetchItemsData(
+      server.options.jsonpadPlayersList,
+      {
+        game: gameId,
+      }
+    );
+    const playersMap = players.data.reduce(
+      (a, p) => ({
+        ...a,
+        [p.playerId]: p.state,
+      }),
+      {}
+    );
+    for (const player of game.players) {
+      player.hiddenState = playersMap[player.id];
+    }
 
-  response.status(200).json({ game: updatedGame });
+    const updatedGame = await GameService.move(server, game, token, moveData);
+
+    response.status(200).json({ game: updatedGame });
+  });
 }
