@@ -751,12 +751,20 @@ export default class GameService {
         // Current player has finished their turn
         player.status = PlayerStatus.WAITING_FOR_TURN;
 
-        // If all players have finished their turn, advance to the next round
+        // If all players have finished their turn (or have finished), advance to
+        // the next round
         if (
-          game.players.every(p => p.status === PlayerStatus.WAITING_FOR_TURN)
+          game.players.every(p =>
+            [PlayerStatus.WAITING_FOR_TURN, PlayerStatus.FINISHED].includes(
+              p.status
+            )
+          )
         ) {
           game.round++;
           game.players.forEach(p => {
+            if (p.status === PlayerStatus.FINISHED) {
+              return;
+            }
             p.status = PlayerStatus.TAKING_TURN;
           });
 
@@ -777,6 +785,9 @@ export default class GameService {
               QueueService.add(game.id, async () => {
                 game.lastEventType = 'timed-out';
                 game.players.forEach(p => {
+                  if (p.status === PlayerStatus.FINISHED) {
+                    return;
+                  }
                   p.status = PlayerStatus.WAITING_FOR_TURN;
                 });
 
@@ -874,13 +885,6 @@ export default class GameService {
     game: Game,
     token: string
   ): Promise<Game> {
-    // Check if the game is running
-    if (
-      ![GameStatus.WAITING_TO_START, GameStatus.STARTED].includes(game.status)
-    ) {
-      throw new ServerError('Game is not waiting to start or running', 403);
-    }
-
     // Find out which player is requesting their state in this game based on the token
     server.options.jsonpadRateLimit &&
       (await sleep(server.options.jsonpadRateLimit));

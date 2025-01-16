@@ -564,10 +564,14 @@ class GameService {
             case types_1.GameMode.ROUNDS:
                 // Current player has finished their turn
                 player.status = types_1.PlayerStatus.WAITING_FOR_TURN;
-                // If all players have finished their turn, advance to the next round
-                if (game.players.every(p => p.status === types_1.PlayerStatus.WAITING_FOR_TURN)) {
+                // If all players have finished their turn (or have finished), advance to
+                // the next round
+                if (game.players.every(p => [types_1.PlayerStatus.WAITING_FOR_TURN, types_1.PlayerStatus.FINISHED].includes(p.status))) {
                     game.round++;
                     game.players.forEach(p => {
+                        if (p.status === types_1.PlayerStatus.FINISHED) {
+                            return;
+                        }
                         p.status = types_1.PlayerStatus.TAKING_TURN;
                     });
                     // If a round time limit is defined, set a timeout for the current round
@@ -582,6 +586,9 @@ class GameService {
                             queue_service_1.default.add(game.id, async () => {
                                 game.lastEventType = 'timed-out';
                                 game.players.forEach(p => {
+                                    if (p.status === types_1.PlayerStatus.FINISHED) {
+                                        return;
+                                    }
                                     p.status = types_1.PlayerStatus.WAITING_FOR_TURN;
                                 });
                                 const updatedGame = await this.advanceGame(server, game, player);
@@ -646,10 +653,6 @@ class GameService {
      * Fetch a game with a player's hidden state attached
      */
     static async state(server, game, token) {
-        // Check if the game is running
-        if (![types_1.GameStatus.WAITING_TO_START, types_1.GameStatus.STARTED].includes(game.status)) {
-            throw new error_1.default('Game is not waiting to start or running', 403);
-        }
         // Find out which player is requesting their state in this game based on the token
         server.options.jsonpadRateLimit &&
             (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
