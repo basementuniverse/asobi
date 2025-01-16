@@ -6,6 +6,7 @@ export type ServerOptions = {
   minPlayers: number;
   maxPlayers: number;
   mode: GameMode;
+  joinTimeLimit: number | null;
   turnTimeLimit: number | null;
   roundTimeLimit: number | null;
   gameTimeLimit: number | null;
@@ -16,6 +17,7 @@ export type ServerOptions = {
     createGame: (game: Game, player: Player) => Promise<Game>;
     joinGame: (game: Game, player: Player) => Promise<Game>;
     move: (game: Game, player: Player, move: Move) => Promise<Game>;
+    round: (game: Game) => Promise<Game>;
     finishGame: (game: Game) => Promise<Game>;
   }>;
 };
@@ -69,12 +71,26 @@ export type Game = {
   moves: Move[];
   round: number;
   state: any;
+  startsAt?: Date | null;
+  finishesAt?: Date | null;
   turnFinishesAt?: Date | null;
   roundFinishesAt?: Date | null;
-  gameFinishesAt?: Date | null;
 };
 
-export type SerialisedGame = Omit<Game, 'id' | 'startedAt' | 'finishedAt'> & {
+export type SerialisedGame = Omit<
+  Game,
+  | 'id'
+  | 'startedAt'
+  | 'finishedAt'
+  | 'startsAt'
+  | 'finishesAt'
+  | 'turnFinishesAt'
+  | 'roundFinishesAt'
+> & {
   startedAt: string;
   finishedAt: string;
+  startsAt?: string | null;
+  finishesAt?: string | null;
+  turnFinishesAt?: string | null;
+  roundFinishesAt?: string | null;
 };

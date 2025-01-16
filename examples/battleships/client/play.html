@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Battleships Example</title>
-<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.4.0/build/client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.6.0/build/client.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@basementuniverse/vec@2.1.0/vec.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@basementuniverse/utils@1.7.0/utils.min.js"></script>
 <style>
@@ -21,6 +21,7 @@ canvas {
 
 const JSONPAD_CLIENT_TOKEN = '<YOUR JSONPAD CLIENT TOKEN>';
 const JSONPAD_GAMES_LIST = '<YOUR JSONPAD GAMES LIST PATH NAME>';
+const ASOBI_SERVER_URL = '<YOUR ASOBI SERVER URL>';
 
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 600;
@@ -51,7 +52,7 @@ let playerGrid = [];
 const client = new AsobiClient({
   jsonpadClientToken: JSONPAD_CLIENT_TOKEN,
   jsonpadGamesList: JSONPAD_GAMES_LIST,
-  asobiServerUrl: '<YOUR ASOBI SERVER URL>',
+  asobiServerUrl: ASOBI_SERVER_URL,
 });
 
 // When the page has finished loading...

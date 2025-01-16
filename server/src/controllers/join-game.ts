@@ -36,6 +36,8 @@ export async function joinGame(
   // Handle player joining using a queue to avoid race conditions
   QueueService.add(gameId, async () => {
     // Fetch the game from jsonpad
+    server.options.jsonpadRateLimit &&
+      (await sleep(server.options.jsonpadRateLimit));
     const game = GameService.dataToGame(
       gameId,
       await server.jsonpad.fetchItemData<SerialisedGame>(
@@ -44,12 +46,9 @@ export async function joinGame(
       )
     );
 
-    // Handle jsonpad rate limiting
-    if (server.options.jsonpadRateLimit) {
-      await sleep(server.options.jsonpadRateLimit);
-    }
-
     // Populate player hidden state
+    server.options.jsonpadRateLimit &&
+      (await sleep(server.options.jsonpadRateLimit));
     const players = await server.jsonpad.fetchItemsData(
       server.options.jsonpadPlayersList,
       {
@@ -65,11 +64,6 @@ export async function joinGame(
     );
     for (const player of game.players) {
       player.hiddenState = playersMap[player.id];
-    }
-
-    // Handle jsonpad rate limiting
-    if (server.options.jsonpadRateLimit) {
-      await sleep(server.options.jsonpadRateLimit);
     }
 
     const [updatedGame, token] = await GameService.joinGame(

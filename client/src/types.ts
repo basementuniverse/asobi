@@ -46,9 +46,10 @@ export type Game = {
   moves: Move[];
   round: number;
   state: any;
+  startsAt?: Date | null;
+  finishesAt?: Date | null;
   turnFinishesAt?: Date | null;
   roundFinishesAt?: Date | null;
-  gameFinishesAt?: Date | null;
 };
 
 export type SerialisedGame = Omit<Game, 'id' | 'startedAt' | 'finishedAt'> & {

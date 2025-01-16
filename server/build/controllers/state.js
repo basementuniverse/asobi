@@ -54,11 +54,9 @@ async function state(server, request, response) {
         token = token.slice(constants.TOKEN_PREFIX.length);
     }
     // Fetch the game from jsonpad
+    server.options.jsonpadRateLimit &&
+        (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
     const game = game_service_1.default.dataToGame(gameId, await server.jsonpad.fetchItemData(server.options.jsonpadGamesList, gameId));
-    // Handle jsonpad rate limiting
-    if (server.options.jsonpadRateLimit) {
-        await (0, sleep_1.default)(server.options.jsonpadRateLimit);
-    }
     const gameState = await game_service_1.default.state(server, game, token);
     response.status(200).json({ game: gameState });
 }

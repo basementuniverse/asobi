@@ -27,6 +27,8 @@ export async function state(
   }
 
   // Fetch the game from jsonpad
+  server.options.jsonpadRateLimit &&
+    (await sleep(server.options.jsonpadRateLimit));
   const game = GameService.dataToGame(
     gameId,
     await server.jsonpad.fetchItemData<SerialisedGame>(
@@ -34,11 +36,6 @@ export async function state(
       gameId
     )
   );
-
-  // Handle jsonpad rate limiting
-  if (server.options.jsonpadRateLimit) {
-    await sleep(server.options.jsonpadRateLimit);
-  }
 
   const gameState = await GameService.state(server, game, token);
 

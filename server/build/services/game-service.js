@@ -44,12 +44,13 @@ const error_1 = __importDefault(require("../error"));
 const types_1 = require("../types");
 const generate_token_1 = __importDefault(require("../utilities/generate-token"));
 const sleep_1 = __importDefault(require("../utilities/sleep"));
+const queue_service_1 = __importDefault(require("./queue-service"));
 class GameService {
     /**
      * Convert a game to serialisable data
      */
     static gameToData(game) {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e, _f, _g;
         const data = {
             ...(0, utils_1.exclude)(game, 'id'),
             moves: game.moves.map(move => ({
@@ -58,10 +59,14 @@ class GameService {
             })),
             startedAt: ((_a = game.startedAt) === null || _a === void 0 ? void 0 : _a.toISOString()) || null,
             finishedAt: ((_b = game.finishedAt) === null || _b === void 0 ? void 0 : _b.toISOString()) || null,
+            startsAt: ((_c = game.startsAt) === null || _c === void 0 ? void 0 : _c.toISOString()) || undefined,
+            finishesAt: ((_d = game.finishesAt) === null || _d === void 0 ? void 0 : _d.toISOString()) || undefined,
+            turnFinishesAt: ((_e = game.turnFinishesAt) === null || _e === void 0 ? void 0 : _e.toISOString()) || undefined,
+            roundFinishesAt: ((_f = game.roundFinishesAt) === null || _f === void 0 ? void 0 : _f.toISOString()) || undefined,
         };
         // Convert the movedAt date if present
         // (for 'player-moved' events, lastEventData will contain move data)
-        if ((_c = game.lastEventData) === null || _c === void 0 ? void 0 : _c.movedAt) {
+        if ((_g = game.lastEventData) === null || _g === void 0 ? void 0 : _g.movedAt) {
             data.lastEventData = {
                 ...game.lastEventData,
                 movedAt: game.lastEventData.movedAt.toISOString(),
@@ -90,6 +95,14 @@ class GameService {
             })),
             startedAt: data.startedAt ? new Date(data.startedAt) : null,
             finishedAt: data.finishedAt ? new Date(data.finishedAt) : null,
+            startsAt: data.startsAt ? new Date(data.startsAt) : undefined,
+            finishesAt: data.finishesAt ? new Date(data.finishesAt) : undefined,
+            turnFinishesAt: data.turnFinishesAt
+                ? new Date(data.turnFinishesAt)
+                : undefined,
+            roundFinishesAt: data.roundFinishesAt
+                ? new Date(data.roundFinishesAt)
+                : undefined,
         };
         // Convert the movedAt date if present
         // (for 'player-moved' events, lastEventData will contain move data)
@@ -129,28 +142,75 @@ class GameService {
             round: 0,
             state: gameData !== null && gameData !== void 0 ? gameData : {},
         };
-        // If we've got enough players, start the game
-        if (game.players.length >= game.numPlayers) {
-            this.startGame(server, game);
-        }
         // Call createGame hook if one is defined
         game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.createGame) === null || _b === void 0 ? void 0 : _b.call(_a, game, player)))) !== null && _c !== void 0 ? _c : game;
+        // If we've got enough players (i.e. this is a 1-player game), then start
+        // the game immediately
+        if (game.players.length >= game.numPlayers) {
+            await this.startGame(server, game);
+        }
         // Extract hidden state
         let hiddenState = undefined;
         if (game.players[0].hiddenState) {
             hiddenState = game.players[0].hiddenState;
             delete game.players[0].hiddenState;
         }
+        // If a join time limit is defined, set a startsAt time
+        let timeLimit = 0;
+        let startsAt = undefined;
+        if (server.options.joinTimeLimit) {
+            timeLimit = Math.max(server.options.joinTimeLimit * constants.MS, constants.MIN_TIMEOUT);
+            startsAt = new Date(Date.now() + timeLimit);
+            game.startsAt = startsAt;
+        }
         // Save the game in jsonpad
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const createdGameItem = await server.jsonpad.createItem(server.options.jsonpadGamesList, {
             data: this.gameToData(game),
         });
-        // Handle jsonpad rate limiting
-        if (server.options.jsonpadRateLimit) {
-            await (0, sleep_1.default)(server.options.jsonpadRateLimit);
+        // If a join time limit is defined, set a timeout for the game to start
+        // automatically if there are enough players
+        if (server.options.joinTimeLimit) {
+            this.joinTimeouts[createdGameItem.id] = setTimeout(async () => {
+                // Handle join time limit using a queue to avoid race conditions
+                queue_service_1.default.add(createdGameItem.id, async () => {
+                    // Fetch the current game
+                    server.options.jsonpadRateLimit &&
+                        (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                    const game = this.dataToGame(createdGameItem.id, await server.jsonpad.fetchItemData(server.options.jsonpadGamesList, createdGameItem.id));
+                    // Handle the edge case where the game has already started
+                    if (game.status !== types_1.GameStatus.WAITING_TO_START) {
+                        return;
+                    }
+                    // Populate player hidden state
+                    server.options.jsonpadRateLimit &&
+                        (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                    const players = await server.jsonpad.fetchItemsData(server.options.jsonpadPlayersList, {
+                        game: createdGameItem.id,
+                    });
+                    const playersMap = players.data.reduce((a, p) => ({
+                        ...a,
+                        [p.playerId]: p.state,
+                    }), {});
+                    for (const player of game.players) {
+                        player.hiddenState = playersMap[player.id];
+                    }
+                    if (game.players.length >= server.options.minPlayers) {
+                        game.numPlayers = game.players.length;
+                        const updatedGame = await this.startGame(server, game);
+                        server.options.jsonpadRateLimit &&
+                            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                        await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, createdGameItem.id, this.gameToData(updatedGame));
+                    }
+                    delete this.joinTimeouts[createdGameItem.id];
+                });
+            }, timeLimit);
         }
         // Save player data in jsonpad
         const token = (0, generate_token_1.default)();
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
             data: {
                 playerId: player.id,
@@ -186,10 +246,6 @@ class GameService {
         };
         // Add player to the game
         game.players.push(player);
-        // If we've got enough players, start the game
-        if (game.players.length >= game.numPlayers) {
-            this.startGame(server, game);
-        }
         // Hash and cache all player hidden states so we can check later if
         // they've been changed
         const originalHiddenStates = game.players
@@ -197,6 +253,19 @@ class GameService {
             .reduce((a, [id, state]) => ({ ...a, [id]: state }), {});
         // Call joinGame hook if one is defined
         game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.joinGame) === null || _b === void 0 ? void 0 : _b.call(_a, game, player)))) !== null && _c !== void 0 ? _c : game;
+        // If we've got enough players, start the game
+        if (game.players.length >= game.numPlayers) {
+            await this.startGame(server, game);
+            // Otherwise, if the game has a join timeout which has passed and we've
+            // got at least the minimum number of players, then start the game
+        }
+        else if (server.options.joinTimeLimit &&
+            game.startsAt &&
+            game.startsAt < new Date() &&
+            game.players.length >= server.options.minPlayers) {
+            game.numPlayers = game.players.length;
+            await this.startGame(server, game);
+        }
         // Extract hidden state for all players
         const updatedHiddenStates = {};
         for (const p of game.players) {
@@ -206,17 +275,17 @@ class GameService {
             }
         }
         // Save the game in jsonpad
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const updatedGameItem = await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData({
             ...game,
             lastEventType: 'player-joined',
             lastEventData: player,
         }));
-        // Handle jsonpad rate limiting
-        if (server.options.jsonpadRateLimit) {
-            await (0, sleep_1.default)(server.options.jsonpadRateLimit);
-        }
         // Save joining player data in jsonpad
         const token = (0, generate_token_1.default)();
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
             data: {
                 playerId: player.id,
@@ -228,16 +297,16 @@ class GameService {
         // Update existing player data in jsonpad
         await (0, async_1.asyncForEach)(game.players, async (p) => {
             var _a;
+            // We can skip the player who just joined because we just updated their
+            // data and hidden state above
             if (p.id !== player.id) {
                 if (updatedHiddenStates[p.id] &&
                     JSON.stringify(p.hiddenState) !== originalHiddenStates[p.id]) {
+                    server.options.jsonpadRateLimit &&
+                        (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
                     await server.jsonpad.replaceItemData(server.options.jsonpadPlayersList, p.id, (_a = updatedHiddenStates[p.id]) !== null && _a !== void 0 ? _a : {}, {
                         pointer: '/state',
                     });
-                    // Handle jsonpad rate limiting
-                    if (server.options.jsonpadRateLimit) {
-                        await (0, sleep_1.default)(server.options.jsonpadRateLimit);
-                    }
                 }
             }
         });
@@ -250,10 +319,18 @@ class GameService {
     /**
      * Start a game
      */
-    static startGame(server, game) {
+    static async startGame(server, game) {
+        var _a, _b, _c;
         game.status = types_1.GameStatus.STARTED;
         game.startedAt = new Date();
         game.round = 1;
+        // Call round hook if one is defined
+        game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.round) === null || _b === void 0 ? void 0 : _b.call(_a, game)))) !== null && _c !== void 0 ? _c : game;
+        // If there's an auto-start timeout for this game, clear it
+        if (this.joinTimeouts[game.id]) {
+            clearTimeout(this.joinTimeouts[game.id]);
+            delete this.joinTimeouts[game.id];
+        }
         // Handle initial move
         let firstPlayer;
         switch (server.options.mode) {
@@ -265,9 +342,15 @@ class GameService {
                 if (server.options.turnTimeLimit) {
                     const timeLimit = Math.max(server.options.turnTimeLimit * constants.MS, constants.MIN_TIMEOUT);
                     this.turnTimeouts[firstPlayer.id] = setTimeout(async () => {
-                        game.lastEventType = 'timed-out';
-                        const updatedGame = this.advanceGame(server, game, firstPlayer);
-                        await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
+                        // Handle turn time limit using a queue to avoid race conditions
+                        queue_service_1.default.add(game.id, async () => {
+                            game.lastEventType = 'timed-out';
+                            const updatedGame = await this.advanceGame(server, game, firstPlayer);
+                            server.options.jsonpadRateLimit &&
+                                (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                            await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
+                            delete this.turnTimeouts[firstPlayer.id];
+                        });
                     }, timeLimit);
                     game.turnFinishesAt = new Date(Date.now() + timeLimit);
                 }
@@ -281,12 +364,21 @@ class GameService {
                 if (server.options.roundTimeLimit) {
                     const timeLimit = Math.max(server.options.roundTimeLimit * constants.MS, constants.MIN_TIMEOUT);
                     this.roundTimeouts[game.id] = setTimeout(async () => {
-                        game.lastEventType = 'timed-out';
-                        game.round++;
-                        game.players.forEach(p => {
-                            p.status = types_1.PlayerStatus.TAKING_TURN;
+                        // Handle round time limit using a queue to avoid race conditions
+                        queue_service_1.default.add(game.id, async () => {
+                            var _a, _b, _c;
+                            game.lastEventType = 'timed-out';
+                            game.round++;
+                            game.players.forEach(p => {
+                                p.status = types_1.PlayerStatus.TAKING_TURN;
+                            });
+                            // Call round hook if one is defined
+                            game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.round) === null || _b === void 0 ? void 0 : _b.call(_a, game)))) !== null && _c !== void 0 ? _c : game;
+                            server.options.jsonpadRateLimit &&
+                                (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                            await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(game));
+                            delete this.roundTimeouts[game.id];
                         });
-                        await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(game));
                     }, timeLimit);
                     game.roundFinishesAt = new Date(Date.now() + timeLimit);
                 }
@@ -301,11 +393,17 @@ class GameService {
         if (server.options.gameTimeLimit) {
             const timeLimit = Math.max(server.options.gameTimeLimit * constants.MS, constants.MIN_TIMEOUT);
             this.gameTimeouts[game.id] = setTimeout(async () => {
-                game.lastEventType = 'timed-out';
-                const finishedGame = await this.finishGame(server, game);
-                await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(finishedGame));
+                // Handle game time limit using a queue to avoid race conditions
+                queue_service_1.default.add(game.id, async () => {
+                    game.lastEventType = 'timed-out';
+                    const finishedGame = await this.finishGame(server, game);
+                    server.options.jsonpadRateLimit &&
+                        (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                    await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(finishedGame));
+                    delete this.gameTimeouts[game.id];
+                });
             }, timeLimit);
-            game.gameFinishesAt = new Date(Date.now() + timeLimit);
+            game.finishesAt = new Date(Date.now() + timeLimit);
         }
         return game;
     }
@@ -318,7 +416,10 @@ class GameService {
         if (game.status !== types_1.GameStatus.STARTED) {
             throw new error_1.default('Game is not running', 403);
         }
-        // Find out which player is making the move in this game based on the token
+        // Find out which player is making the move in this game based on which
+        // token is being used
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const playerResults = await server.jsonpad.fetchItems(server.options.jsonpadPlayersList, {
             limit: 1,
             game: game.id,
@@ -360,6 +461,13 @@ class GameService {
             .reduce((a, [id, state]) => ({ ...a, [id]: state }), {});
         // Call move hook if one is defined
         game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.move) === null || _b === void 0 ? void 0 : _b.call(_a, game, player, move)))) !== null && _c !== void 0 ? _c : game;
+        // Check if the game has been finished in this move
+        if (game.status === types_1.GameStatus.FINISHED) {
+            game = await this.finishGame(server, game, false);
+        }
+        else {
+            game = await this.advanceGame(server, game, player);
+        }
         // Extract hidden state for all players
         const updatedHiddenStates = {};
         for (const p of game.players) {
@@ -368,14 +476,9 @@ class GameService {
                 delete p.hiddenState;
             }
         }
-        // Check if the game has been finished in this move
-        if (game.status === types_1.GameStatus.FINISHED) {
-            game = await this.finishGame(server, game, false);
-        }
-        else {
-            this.advanceGame(server, game, player);
-        }
         // Save the game in jsonpad
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const updatedGameItem = await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData({
             ...game,
             lastEventData: {
@@ -383,24 +486,16 @@ class GameService {
                 ...((_d = game.lastEventData) !== null && _d !== void 0 ? _d : {}),
             },
         }));
-        // Handle jsonpad rate limiting
-        if (server.options.jsonpadRateLimit) {
-            await (0, sleep_1.default)(server.options.jsonpadRateLimit);
-        }
-        // Update existing player data in jsonpad
+        // Update all player data in jsonpad
         await (0, async_1.asyncForEach)(game.players, async (p) => {
             var _a;
-            if (p.id !== player.id) {
-                if (updatedHiddenStates[p.id] &&
-                    JSON.stringify(p.hiddenState) !== originalHiddenStates[p.id]) {
-                    await server.jsonpad.replaceItemData(server.options.jsonpadPlayersList, p.id, (_a = updatedHiddenStates[p.id]) !== null && _a !== void 0 ? _a : {}, {
-                        pointer: '/state',
-                    });
-                    // Handle jsonpad rate limiting
-                    if (server.options.jsonpadRateLimit) {
-                        await (0, sleep_1.default)(server.options.jsonpadRateLimit);
-                    }
-                }
+            if (updatedHiddenStates[p.id] &&
+                JSON.stringify(p.hiddenState) !== originalHiddenStates[p.id]) {
+                server.options.jsonpadRateLimit &&
+                    (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                await server.jsonpad.replaceItemData(server.options.jsonpadPlayersList, p.id, (_a = updatedHiddenStates[p.id]) !== null && _a !== void 0 ? _a : {}, {
+                    pointer: '/state',
+                });
             }
         });
         // Re-insert hidden state for the moving player into the response
@@ -412,7 +507,9 @@ class GameService {
     /**
      * Handle turn/round advancement
      */
-    static advanceGame(server, game, player) {
+    static async advanceGame(server, game, player) {
+        var _a, _b, _c;
+        const currentRound = game.round;
         // Handle turn/round advancement
         switch (server.options.mode) {
             case types_1.GameMode.TURNS:
@@ -423,11 +520,12 @@ class GameService {
                 if (game.players.some(p => p.status === types_1.PlayerStatus.WAITING_FOR_TURN)) {
                     const currentPlayerIndex = game.players.findIndex(p => p.id === player.id);
                     for (let i = 1; i < game.players.length; i++) {
-                        const currentIndex = (currentPlayerIndex + i) % game.players.length;
+                        let currentIndex = currentPlayerIndex + i;
                         // Increment the round if we pass the end of the player list
                         if (currentIndex >= game.players.length) {
                             game.round++;
                         }
+                        currentIndex = currentIndex % game.players.length;
                         if (game.players[currentIndex].status ===
                             types_1.PlayerStatus.WAITING_FOR_TURN) {
                             nextPlayer = game.players[currentIndex];
@@ -444,14 +542,21 @@ class GameService {
                 }
                 // If a turn time limit is defined, set a timeout for the current player
                 if (server.options.turnTimeLimit) {
-                    const timeLimit = server.options.turnTimeLimit * constants.MS;
+                    const timeLimit = Math.max(server.options.turnTimeLimit * constants.MS, constants.MIN_TIMEOUT);
                     if (this.turnTimeouts[player.id]) {
                         clearTimeout(this.turnTimeouts[player.id]);
+                        delete this.turnTimeouts[player.id];
                     }
                     this.turnTimeouts[player.id] = setTimeout(async () => {
-                        game.lastEventType = 'timed-out';
-                        const updatedGame = this.advanceGame(server, game, nextPlayer);
-                        await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
+                        // Handle turn time limit using a queue to vaoid race conditions
+                        queue_service_1.default.add(game.id, async () => {
+                            game.lastEventType = 'timed-out';
+                            const updatedGame = await this.advanceGame(server, game, nextPlayer);
+                            server.options.jsonpadRateLimit &&
+                                (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                            await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
+                            delete this.turnTimeouts[player.id];
+                        });
                     }, timeLimit);
                     game.turnFinishesAt = new Date(Date.now() + timeLimit);
                 }
@@ -467,17 +572,24 @@ class GameService {
                     });
                     // If a round time limit is defined, set a timeout for the current round
                     if (server.options.roundTimeLimit) {
-                        const timeLimit = server.options.roundTimeLimit * constants.MS;
+                        const timeLimit = Math.max(server.options.roundTimeLimit * constants.MS, constants.MIN_TIMEOUT);
                         if (this.roundTimeouts[game.id]) {
                             clearTimeout(this.roundTimeouts[game.id]);
+                            delete this.roundTimeouts[game.id];
                         }
                         this.roundTimeouts[game.id] = setTimeout(async () => {
-                            game.lastEventType = 'timed-out';
-                            game.players.forEach(p => {
-                                p.status = types_1.PlayerStatus.WAITING_FOR_TURN;
+                            // Handle round time limit using a queue to avoid race conditions
+                            queue_service_1.default.add(game.id, async () => {
+                                game.lastEventType = 'timed-out';
+                                game.players.forEach(p => {
+                                    p.status = types_1.PlayerStatus.WAITING_FOR_TURN;
+                                });
+                                const updatedGame = await this.advanceGame(server, game, player);
+                                server.options.jsonpadRateLimit &&
+                                    (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
+                                await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
+                                delete this.roundTimeouts[game.id];
                             });
-                            const updatedGame = this.advanceGame(server, game, player);
-                            await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(updatedGame));
                         }, timeLimit);
                         game.roundFinishesAt = new Date(Date.now() + timeLimit);
                     }
@@ -485,6 +597,10 @@ class GameService {
                 break;
             case types_1.GameMode.FREE:
                 break;
+        }
+        // Call round hook if one is defined
+        if (game.round !== currentRound) {
+            game = (_c = (await ((_b = (_a = server.options.hooks) === null || _a === void 0 ? void 0 : _a.round) === null || _b === void 0 ? void 0 : _b.call(_a, game)))) !== null && _c !== void 0 ? _c : game;
         }
         return game;
     }
@@ -502,16 +618,25 @@ class GameService {
         for (const player of game.players) {
             if (this.turnTimeouts[player.id]) {
                 clearTimeout(this.turnTimeouts[player.id]);
+                delete this.turnTimeouts[player.id];
             }
         }
         if (this.roundTimeouts[game.id]) {
             clearTimeout(this.roundTimeouts[game.id]);
+            delete this.roundTimeouts[game.id];
         }
         if (this.gameTimeouts[game.id]) {
             clearTimeout(this.gameTimeouts[game.id]);
+            delete this.gameTimeouts[game.id];
+        }
+        if (this.joinTimeouts[game.id]) {
+            clearTimeout(this.joinTimeouts[game.id]);
+            delete this.joinTimeouts[game.id];
         }
         // Save the game in jsonpad
         if (save) {
+            server.options.jsonpadRateLimit &&
+                (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
             const updatedGameItem = await server.jsonpad.replaceItemData(server.options.jsonpadGamesList, game.id, this.gameToData(game));
             return this.dataToGame(updatedGameItem.id, updatedGameItem.data);
         }
@@ -526,6 +651,8 @@ class GameService {
             throw new error_1.default('Game is not waiting to start or running', 403);
         }
         // Find out which player is requesting their state in this game based on the token
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const playerResults = await server.jsonpad.fetchItems(server.options.jsonpadPlayersList, {
             limit: 1,
             game: game.id,
@@ -551,6 +678,7 @@ class GameService {
         return game;
     }
 }
+GameService.joinTimeouts = {};
 GameService.turnTimeouts = {};
 GameService.roundTimeouts = {};
 GameService.gameTimeouts = {};

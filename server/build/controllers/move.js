@@ -66,12 +66,12 @@ async function move(server, request, response) {
     // Handle player moves using a queue to avoid race conditions
     queue_service_1.default.add(gameId, async () => {
         // Fetch the game from jsonpad
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const game = game_service_1.default.dataToGame(gameId, await server.jsonpad.fetchItemData(server.options.jsonpadGamesList, gameId));
-        // Handle jsonpad rate limiting
-        if (server.options.jsonpadRateLimit) {
-            await (0, sleep_1.default)(server.options.jsonpadRateLimit);
-        }
         // Populate player hidden state
+        server.options.jsonpadRateLimit &&
+            (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const players = await server.jsonpad.fetchItemsData(server.options.jsonpadPlayersList, {
             game: gameId,
         });

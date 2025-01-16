@@ -1,6 +1,7 @@
 import { Server } from '../server';
 import { Game } from '../types';
 export default class GameService {
+    private static joinTimeouts;
     private static turnTimeouts;
     private static roundTimeouts;
     private static gameTimeouts;

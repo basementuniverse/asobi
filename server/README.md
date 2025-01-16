@@ -86,6 +86,18 @@ const server = new AsobiServer({
   // mode: 'free',
 
   /**
+   * Time limit (in seconds) for joining a game
+   *
+   * The game will start as soon as:
+   * - the time limit is reached (if the minimum number of players have joined)
+   * - the maximum number of players have joined
+   * - the minimum number of players have joined (if the time limit has been reached)
+   *
+   * Set this to null to disable the join time limit
+   */
+  joinTimeLimit: null,
+
+  /**
    * Time limit (in seconds) for each player turn
    *
    * If no move is made within this time limit, the game advances to the next turn
@@ -204,6 +216,21 @@ const server = new AsobiServer({
       return game;
     },
 
+    round: async (game: Game): Promise<Game> => {
+      // Handle round advanced here...
+
+      // This hook will be called every time the round advances, this could be when
+      // all players have taken their turn in "turns" / "rounds" modes, or when a
+      // round time limit is reached
+      // game.lastEventType will be unchanged (it will most likely be 'player-moved' or
+      // 'timed-out')
+
+      // We can generally infer when a round has advanced inside the move hook, so
+      // this hook is just for convenience
+
+      return game;
+    },
+
     /**
      * A game was finished
      *
@@ -255,9 +282,10 @@ type Game = {
   moves: Move[];
   round: number;
   state: any;
+  startsAt?: Date | null;
+  finishesAt?: Date | null;
   turnFinishesAt?: Date | null;
   roundFinishesAt?: Date | null;
-  gameFinishesAt?: Date | null;
 };
 
 type Player = {

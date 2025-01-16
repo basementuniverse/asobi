@@ -114,6 +114,7 @@ Server.defaultOptions = {
     minPlayers: 2,
     maxPlayers: 2,
     mode: types_1.GameMode.TURNS,
+    joinTimeLimit: null,
     turnTimeLimit: null,
     roundTimeLimit: null,
     gameTimeLimit: null,

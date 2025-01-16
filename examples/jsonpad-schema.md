@@ -114,6 +114,28 @@ We need a list to store games.
       "type": "integer"
     },
     "state": {},
+    "startsAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "finishesAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
     "turnFinishesAt": {
       "anyOf": [
         {
@@ -126,17 +148,6 @@ We need a list to store games.
       ]
     },
     "roundFinishesAt": {
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "type": "string",
-          "format": "date-time"
-        }
-      ]
-    },
-    "gameFinishesAt": {
       "anyOf": [
         {
           "type": "null"
