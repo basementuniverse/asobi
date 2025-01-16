@@ -40,7 +40,6 @@ exports.state = state;
 const constants = __importStar(require("../constants"));
 const error_1 = __importDefault(require("../error"));
 const game_service_1 = __importDefault(require("../services/game-service"));
-const sleep_1 = __importDefault(require("../utilities/sleep"));
 async function state(server, request, response) {
     let token = request.headers['authorization'];
     const gameId = request.params.gameId;
@@ -53,11 +52,7 @@ async function state(server, request, response) {
     if (token.startsWith(constants.TOKEN_PREFIX)) {
         token = token.slice(constants.TOKEN_PREFIX.length);
     }
-    // Fetch the game from jsonpad
-    server.options.jsonpadRateLimit &&
-        (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
-    const game = game_service_1.default.dataToGame(gameId, await server.jsonpad.fetchItemData(server.options.jsonpadGamesList, gameId));
-    const gameState = await game_service_1.default.state(server, game, token);
+    const gameState = await game_service_1.default.state(server, gameId, token);
     response.status(200).json({ game: gameState });
 }
 //# sourceMappingURL=state.js.map

@@ -7,6 +7,10 @@ export default class QueueService {
      */
     static add(gameId: string, fn: () => Promise<void>): void;
     /**
+     * Clear the queue for the specified game
+     */
+    static clear(gameId: string): void;
+    /**
      * Process the queue for the specified game
      */
     private static processQueue;

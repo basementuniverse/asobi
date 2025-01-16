@@ -21,6 +21,17 @@ export default class QueueService {
   }
 
   /**
+   * Clear the queue for the specified game
+   */
+  public static clear(gameId: string) {
+    this.queues[gameId] = [];
+    this.processing[gameId] = false;
+
+    delete this.queues[gameId];
+    delete this.processing[gameId];
+  }
+
+  /**
    * Process the queue for the specified game
    */
   private static async processQueue(gameId: string): Promise<void> {

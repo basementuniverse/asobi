@@ -48,6 +48,15 @@ class QueueService {
         }
     }
     /**
+     * Clear the queue for the specified game
+     */
+    static clear(gameId) {
+        this.queues[gameId] = [];
+        this.processing[gameId] = false;
+        delete this.queues[gameId];
+        delete this.processing[gameId];
+    }
+    /**
      * Process the queue for the specified game
      */
     static async processQueue(gameId) {

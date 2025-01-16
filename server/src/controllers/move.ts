@@ -5,8 +5,6 @@ import ServerError from '../error';
 import { Server } from '../server';
 import GameService from '../services/game-service';
 import QueueService from '../services/queue-service';
-import { SerialisedGame } from '../types';
-import sleep from '../utilities/sleep';
 
 export async function move(
   server: Server,
@@ -44,38 +42,7 @@ export async function move(
 
   // Handle player moves using a queue to avoid race conditions
   QueueService.add(gameId, async () => {
-    // Fetch the game from jsonpad
-    server.options.jsonpadRateLimit &&
-      (await sleep(server.options.jsonpadRateLimit));
-    const game = GameService.dataToGame(
-      gameId,
-      await server.jsonpad.fetchItemData<SerialisedGame>(
-        server.options.jsonpadGamesList,
-        gameId
-      )
-    );
-
-    // Populate player hidden state
-    server.options.jsonpadRateLimit &&
-      (await sleep(server.options.jsonpadRateLimit));
-    const players = await server.jsonpad.fetchItemsData(
-      server.options.jsonpadPlayersList,
-      {
-        game: gameId,
-      }
-    );
-    const playersMap = players.data.reduce(
-      (a, p) => ({
-        ...a,
-        [p.playerId]: p.state,
-      }),
-      {}
-    );
-    for (const player of game.players) {
-      player.hiddenState = playersMap[player.id];
-    }
-
-    const updatedGame = await GameService.move(server, game, token, moveData);
+    const updatedGame = await GameService.move(server, gameId, token, moveData);
 
     response.status(200).json({ game: updatedGame });
   });
