@@ -79,6 +79,11 @@ export class Server {
       }
     );
 
+    // Call custom setup hook if one is defined
+    if (this.options.hooks.setup) {
+      this.options.hooks.setup(this.api);
+    }
+
     // Error handling
     this.api.use(
       (

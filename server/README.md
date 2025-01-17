@@ -170,8 +170,20 @@ const server = new AsobiServer({
 
   /**
    * These functions will be called at specific points in a game's lifecycle
+   *
+   * All of these hooks are optional, so you can define only the ones you need
    */
   hooks: {
+    /**
+     * This hook is called after setting up the default routes but before setting
+     * up the error handler (which should be setup last)
+     *
+     * It allows you to define custom routes, middleware, etc.
+     */
+    setup: (api: Express): void => {
+      // Define custom routes here...
+    },
+
     /**
      * A player has created a new game
      *
@@ -216,6 +228,15 @@ const server = new AsobiServer({
       return game;
     },
 
+    /**
+     * A new round has started
+     *
+     * This will usually be called after all players have taken their turn when
+     * using "turns" or "rounds" modes. It will also be called when the round advances
+     * due to a turn-timeout (in "turns" mode) or a round-timeout (in "rounds" mode)
+     *
+     * When using "free" mode, this hook will not be called (since there are no rounds)
+     */
     round: async (game: Game): Promise<Game> => {
       // Handle round advanced here...
 
@@ -225,7 +246,7 @@ const server = new AsobiServer({
       // game.lastEventType will be unchanged (it will most likely be 'player-moved' or
       // 'timed-out')
 
-      // We can generally infer when a round has advanced inside the move hook, so
+      // We can usually infer when a round has advanced inside the move hook, so
       // this hook is just for convenience
 
       return game;
@@ -293,6 +314,7 @@ type Player = {
   name: string;
   status: PlayerStatus;
   state?: any;
+  hiddenState?: any;
 };
 
 type Move = {
@@ -316,7 +338,7 @@ enum PlayerStatus {
 
 ## A note about hidden player state
 
-For some games, we might want to hide some player state data from other players. For example, in a card game, we might want to hide a player's hand from opponents.
+For some games, we might want to hide certain parts of a player's state data from other players. For example, in a card game, we might want to hide a player's hand from their opponents.
 
 To achieve this, in the `createGame`, `joinGame`, and `move` hooks, for each player in the game's `players` array we can include a `hiddenState` property in the player object.
 
@@ -324,4 +346,4 @@ If this property is present in the game data when the hook returns, it will be r
 
 The current player (the player who is starting the game, joining the game, or currently taking their turn) will still be able to see their own hidden state in responses.
 
-Note that all hidden player state will be hidden from event handler parameters.
+Note that all hidden player state will be hidden from event handler parameters, so if you need to access or modify hidden state when handling a realtime event, you will need to re-fetch the game state using the client's `fetchState()` method. This method takes a player token as an argument, which ensures that a player's hidden state can only be viewed by that player.

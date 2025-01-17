@@ -70,6 +70,10 @@ class Server {
         this.api.get('/state/:gameId', async (request, response) => {
             await controllers.state(this, request, response);
         });
+        // Call custom setup hook if one is defined
+        if (this.options.hooks.setup) {
+            this.options.hooks.setup(this.api);
+        }
         // Error handling
         this.api.use((error, request, response, next) => {
             var _a;

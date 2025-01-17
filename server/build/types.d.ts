@@ -1,3 +1,4 @@
+import { Express } from 'express';
 export type ServerOptions = {
     jsonpadServerToken: string;
     jsonpadGamesList: string;
@@ -14,6 +15,7 @@ export type ServerOptions = {
     playerSchema: any;
     moveSchema: any;
     hooks: Partial<{
+        setup: (api: Express) => void;
         createGame: (game: Game, player: Player) => Promise<Game>;
         joinGame: (game: Game, player: Player) => Promise<Game>;
         move: (game: Game, player: Player, move: Move) => Promise<Game>;
