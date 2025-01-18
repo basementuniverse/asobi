@@ -1,0 +1,159 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting_to_start",
+        "started",
+        "finished"
+      ]
+    },
+    "startedAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "finishedAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "lastEventType": {
+      "type": "string",
+      "enum": [
+        "game-created",
+        "game-finished",
+        "player-joined",
+        "timed-out",
+        "player-moved"
+      ]
+    },
+    "lastEventData": {},
+    "numPlayers": {
+      "type": "integer"
+    },
+    "players": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting_for_turn",
+              "taking_turn",
+              "finished"
+            ]
+          },
+          "state": {}
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "state"
+        ]
+      }
+    },
+    "moves": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "string"
+          },
+          "movedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {}
+        },
+        "required": [
+          "playerId",
+          "movedAt",
+          "data"
+        ]
+      }
+    },
+    "round": {
+      "type": "integer"
+    },
+    "state": {},
+    "startsAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "finishesAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "turnFinishesAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    },
+    "roundFinishesAt": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "startedAt",
+    "finishedAt",
+    "lastEventType",
+    "lastEventData",
+    "numPlayers",
+    "players",
+    "moves",
+    "round",
+    "state"
+  ]
+}

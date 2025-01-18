@@ -126,7 +126,7 @@ export class Client extends EventTarget {
       ...game,
       startedAt: game.startedAt ? new Date(game.startedAt) : null,
       finishedAt: game.finishedAt ? new Date(game.finishedAt) : null,
-    };
+    } as Game;
   }
 
   /**

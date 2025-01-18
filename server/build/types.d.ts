@@ -44,6 +44,7 @@ export type Player = {
     status: PlayerStatus;
     state: any;
     hiddenState?: any;
+    [key: string]: any;
 };
 export type Move = {
     playerId: string;
@@ -66,6 +67,7 @@ export type Game = {
     finishesAt?: Date | null;
     turnFinishesAt?: Date | null;
     roundFinishesAt?: Date | null;
+    [key: string]: any;
 };
 export type SerialisedGame = Omit<Game, 'id' | 'startedAt' | 'finishedAt' | 'startsAt' | 'finishesAt' | 'turnFinishesAt' | 'roundFinishesAt'> & {
     startedAt: string;

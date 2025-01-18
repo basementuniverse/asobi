@@ -307,6 +307,7 @@ type Game = {
   finishesAt?: Date | null;
   turnFinishesAt?: Date | null;
   roundFinishesAt?: Date | null;
+  [key: string]: any;
 };
 
 type Player = {
@@ -315,6 +316,7 @@ type Player = {
   status: PlayerStatus;
   state?: any;
   hiddenState?: any;
+  [key: string]: any;
 };
 
 type Move = {

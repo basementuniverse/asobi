@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "playerId": {
+      "type": "string"
+    },
+    "gameId": {
+      "type": "string"
+    },
+    "token": {
+      "type": "string"
+    },
+    "state": {}
+  },
+  "required": [
+    "playerId",
+    "gameId",
+    "token",
+    "state"
+  ]
+}
