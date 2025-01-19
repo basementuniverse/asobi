@@ -25,7 +25,6 @@ const server = new AsobiServer({
 
   // Define hooks that will be called at various points in the game's lifecycle
   hooks: {
-
     // A new game was started by a player
     // The player will be "Player 1"
     createGame: async (game, player) => {

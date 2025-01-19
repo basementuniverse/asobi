@@ -9,11 +9,10 @@ export async function createGame(
   request: Request,
   response: Response
 ) {
-  const { playerName, playerData, gameData, numPlayers } = request.body as {
+  const { playerName, playerData, gameData } = request.body as {
     playerName: string;
     playerData?: Record<string, any>;
     gameData?: Record<string, any>;
-    numPlayers?: number;
   };
 
   // Validate player data
@@ -44,8 +43,7 @@ export async function createGame(
     server,
     playerName,
     playerData,
-    gameData,
-    numPlayers
+    gameData
   );
 
   response.status(201).json({ game, token });

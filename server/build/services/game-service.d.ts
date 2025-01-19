@@ -2,13 +2,29 @@ import { Server } from '../server';
 import { Game } from '../types';
 export default class GameService {
     /**
+     * Create a new game with the specified player as Player 1
+     */
+    static createGame(server: Server, playerName: string, playerData?: Record<string, any>, gameData?: Record<string, any>): Promise<[Game, string]>;
+    /**
+     * Join an existing game as Player 2+
+     */
+    static joinGame(server: Server, gameId: string, playerName: string, playerData?: Record<string, any>): Promise<[Game, string]>;
+    /**
+     * Make a move in an existing game
+     */
+    static move(server: Server, gameId: string, token: string, moveData?: Record<string, any>): Promise<Game>;
+    /**
+     * Fetch a game with a player's hidden state attached
+     */
+    static state(server: Server, gameId: string, token: string): Promise<Game>;
+    /**
      * Convert a game to serialisable data
      */
-    static gameToData(game: Game): Record<string, any>;
+    private static gameToData;
     /**
      * Convert serialised data to a game
      */
-    static dataToGame(id: string, data: Record<string, any>): Game;
+    private static dataToGame;
     /**
      * Fetch a game from jsonpad
      */
@@ -30,21 +46,15 @@ export default class GameService {
      */
     private static persistGame;
     /**
-     * Create a new game with the specified player as Player 1
+     * Calculate the actual joinTimeout / turnTimeout / roundTimeout / gameTimeout
+     * for a game based on the server configuration and the value optionally
+     * specified by the host player when creating a new game session
      */
-    static createGame(server: Server, playerName: string, playerData?: Record<string, any>, gameData?: Record<string, any>, numPlayers?: number): Promise<[Game, string]>;
-    /**
-     * Join an existing game as Player 2+
-     */
-    static joinGame(server: Server, gameId: string, playerName: string, playerData?: Record<string, any>): Promise<[Game, string]>;
+    private static calculateTimeLimitSetting;
     /**
      * Start a game
      */
     private static startGame;
-    /**
-     * Make a move in an existing game
-     */
-    static move(server: Server, gameId: string, token: string, moveData?: Record<string, any>): Promise<Game>;
     /**
      * Handle turn/round advancement
      */
@@ -53,8 +63,4 @@ export default class GameService {
      * Finish a game
      */
     private static finishGame;
-    /**
-     * Fetch a game with a player's hidden state attached
-     */
-    static state(server: Server, gameId: string, token: string): Promise<Game>;
 }

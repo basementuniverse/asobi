@@ -6,7 +6,7 @@ When all of a player's ships are destroyed, the player is eliminated. The last p
 
 ## Setup
 
-See [jsonpad-schema.md](../jsonpad-schema.md) for instructions on setting up JSONPad.
+See [jsonpad.md](../jsonpad.md) for instructions on setting up JSONPad.
 
 Install server dependencies:
 
@@ -15,7 +15,7 @@ cd server
 npm install
 ```
 
-Paste JSONPad list path names and tokens into `client/index.html` and `server/index.js`.
+Paste JSONPad list path names and tokens into `client/*.html` and `server/index.js`.
 
 ## Running the game
 

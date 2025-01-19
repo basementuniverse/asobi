@@ -4,7 +4,7 @@
 
 ## Setup
 
-See [jsonpad-schema.md](../jsonpad-schema.md) for instructions on setting up JSONPad.
+See [jsonpad.md](../jsonpad.md) for instructions on setting up JSONPad.
 
 Install server dependencies:
 

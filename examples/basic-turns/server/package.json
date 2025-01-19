@@ -6,6 +6,6 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@basementuniverse/asobi-server": "^1.9.0"
+    "@basementuniverse/asobi-server": "*"
   }
 }

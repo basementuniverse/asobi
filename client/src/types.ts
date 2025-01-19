@@ -44,6 +44,10 @@ export type Game = {
     | 'game-finished';
   lastEventData: any;
   numPlayers: number;
+  joinTimeLimit: number | null;
+  turnTimeLimit: number | null;
+  roundTimeLimit: number | null;
+  gameTimeLimit: number | null;
   players: Player[];
   moves: Move[];
   round: number;

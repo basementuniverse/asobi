@@ -12,6 +12,7 @@ import {
   Player,
   PlayerStatus,
   SerialisedGame,
+  TimeLimitSettings,
 } from '../types';
 import generateToken from '../utilities/generate-token';
 import sleep from '../utilities/sleep';
@@ -20,9 +21,419 @@ import SchedulerService from './scheduler-service';
 
 export default class GameService {
   /**
+   * Create a new game with the specified player as Player 1
+   */
+  public static async createGame(
+    server: Server,
+    playerName: string,
+    playerData?: Record<string, any>,
+    gameData?: Record<string, any>
+  ): Promise<[Game, string]> {
+    // Prepare public player data for the new player
+    const player = {
+      id: uuid(),
+      name: playerName || 'Player 1',
+      status: PlayerStatus.WAITING_FOR_TURN,
+      state: playerData ?? {},
+    };
+
+    // Calculate how many players are required for this game session
+    const actualNumPlayers = clamp(
+      gameData?.numPlayers || server.options.minPlayers,
+      server.options.minPlayers,
+      server.options.maxPlayers
+    );
+
+    // Calculate the actual join time limit for this game session
+    const actualJoinTimeLimit = this.calculateTimeLimitSetting(
+      gameData?.joinTimeLimit,
+      server.options.joinTimeLimit
+    );
+
+    // Calculate the actual turn time limit for this game session
+    const actualTurnTimeLimit = this.calculateTimeLimitSetting(
+      gameData?.turnTimeLimit,
+      server.options.turnTimeLimit
+    );
+
+    // Calculate the actual round time limit for this game session
+    const actualRoundTimeLimit = this.calculateTimeLimitSetting(
+      gameData?.roundTimeLimit,
+      server.options.roundTimeLimit
+    );
+
+    // Calculate the actual game time limit for this game session
+    const actualGameTimeLimit = this.calculateTimeLimitSetting(
+      gameData?.gameTimeLimit,
+      server.options.gameTimeLimit
+    );
+
+    // Create initial game data
+    let game: Game = {
+      id: '',
+      status: GameStatus.WAITING_TO_START,
+      startedAt: null,
+      finishedAt: null,
+      lastEventType: 'game-created',
+      lastEventData: null,
+      joinTimeLimit: actualJoinTimeLimit,
+      turnTimeLimit: actualTurnTimeLimit,
+      roundTimeLimit: actualRoundTimeLimit,
+      gameTimeLimit: actualGameTimeLimit,
+      numPlayers: actualNumPlayers,
+      players: [player],
+      moves: [],
+      round: 0,
+      state: gameData ?? {},
+    };
+
+    // Call createGame hook if one is defined
+    game = (await server.options.hooks?.createGame?.(game, player)) ?? game;
+
+    // Extract hidden state
+    let hiddenState: any = undefined;
+    if (game.players[0].hiddenState) {
+      hiddenState = game.players[0].hiddenState;
+      delete game.players[0].hiddenState;
+    }
+
+    // If a join time limit is defined, set a startsAt time
+    let timeLimit = 0;
+    let startsAt: Date | undefined = undefined;
+    if (game.joinTimeLimit) {
+      timeLimit = Math.max(
+        game.joinTimeLimit * constants.MS,
+        constants.MIN_TIMEOUT
+      );
+      startsAt = new Date(Date.now() + timeLimit);
+      game.startsAt = startsAt;
+    }
+
+    // Save the game in jsonpad
+    server.options.jsonpadRateLimit &&
+      (await sleep(server.options.jsonpadRateLimit));
+    const createdGameItem = await server.jsonpad.createItem(
+      server.options.jsonpadGamesList,
+      {
+        data: this.gameToData(game),
+      }
+    );
+
+    // Save player data in jsonpad
+    const token = generateToken();
+    server.options.jsonpadRateLimit &&
+      (await sleep(server.options.jsonpadRateLimit));
+    await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
+      data: {
+        playerId: player.id,
+        gameId: createdGameItem.id,
+        token,
+        state: hiddenState ?? {},
+      },
+    });
+
+    // If a join time limit is defined, set a timeout for the game to start
+    // automatically if there are enough players
+    if (game.joinTimeLimit) {
+      SchedulerService.schedule(
+        createdGameItem.id,
+        '',
+        'join-timeout',
+        async () => {
+          // Fetch the current game with player hidden state attached
+          const currentGame = await this.populatePlayerHiddenState(
+            server,
+            await this.fetchGame(server, createdGameItem.id)
+          );
+
+          // Handle an edge case where the game has already started
+          if (currentGame.status !== GameStatus.WAITING_TO_START) {
+            return;
+          }
+
+          // If we've got enough players to automatically start the game, then
+          // start the game immediately
+          const originalPlayerHiddenStates = this.getPlayerHiddenStateMap(game);
+          if (currentGame.players.length >= server.options.minPlayers) {
+            currentGame.numPlayers = currentGame.players.length;
+
+            const updatedGame = await this.startGame(server, currentGame);
+
+            await this.persistGame(
+              server,
+              updatedGame,
+              {},
+              originalPlayerHiddenStates
+            );
+          }
+        },
+        timeLimit
+      );
+    }
+
+    // Re-insert hidden state for the host player into the response
+    const result = this.dataToGame(createdGameItem.id, createdGameItem.data);
+    result.players[0].hiddenState = hiddenState;
+
+    return [result, token];
+  }
+
+  /**
+   * Join an existing game as Player 2+
+   */
+  public static async joinGame(
+    server: Server,
+    gameId: string,
+    playerName: string,
+    playerData?: Record<string, any>
+  ): Promise<[Game, string]> {
+    let game = await this.populatePlayerHiddenState(
+      server,
+      await this.fetchGame(server, gameId)
+    );
+
+    // Check if we've already reached the maximum number of players
+    if (game.players.length >= game.numPlayers) {
+      throw new ServerError('Game is full', 403);
+    }
+
+    // Check if the game has already started
+    if (game.status !== GameStatus.WAITING_TO_START) {
+      throw new ServerError('Game has already started', 403);
+    }
+
+    // Prepare public player data for the joining player
+    const player = {
+      id: uuid(),
+      name: playerName || `Player ${game.players.length + 1}`,
+      status: PlayerStatus.WAITING_FOR_TURN,
+      state: playerData ?? {},
+    };
+
+    // Add player to the game
+    game.players.push(player);
+
+    // Fetch all player hidden states so we can check later if they've changed
+    const originalPlayerHiddenStates = this.getPlayerHiddenStateMap(game);
+
+    // Call joinGame hook if one is defined
+    game = (await server.options.hooks?.joinGame?.(game, player)) ?? game;
+
+    // If we've got enough players, start the game
+    if (game.players.length >= game.numPlayers) {
+      await this.startGame(server, game);
+
+      // Otherwise, if the game has a join timeout which has passed and we've
+      // got at least the minimum number of players, then we should start the
+      // game immediately
+    } else if (
+      game.joinTimeLimit &&
+      game.startsAt &&
+      game.startsAt < new Date() &&
+      game.players.length >= server.options.minPlayers
+    ) {
+      game.numPlayers = game.players.length;
+
+      await this.startGame(server, game);
+    }
+
+    // Store the joining player's hidden state
+    const joiningPlayerHiddenState = game.players.find(
+      p => p.id === player.id
+    )?.hiddenState;
+
+    // Save the game in jsonpad
+    const updatedGame = await this.persistGame(
+      server,
+      game,
+      {
+        lastEventType: 'player-joined',
+        lastEventData: player,
+      },
+      originalPlayerHiddenStates,
+      undefined,
+      player.id
+    );
+
+    // Save joining player data in jsonpad
+    const token = generateToken();
+    server.options.jsonpadRateLimit &&
+      (await sleep(server.options.jsonpadRateLimit));
+    await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
+      data: {
+        playerId: player.id,
+        gameId: updatedGame.id,
+        token,
+        state: joiningPlayerHiddenState ?? {},
+      },
+    });
+
+    // Re-insert hidden state for the joining player into the response
+    // (because we created the joining player above, their hidden state won't be
+    // automatically inserted by persistGame(), so we should do it manually here)
+    const joiningPlayer = updatedGame.players.find(p => p.id === player.id);
+    if (joiningPlayer && joiningPlayerHiddenState) {
+      joiningPlayer.hiddenState = joiningPlayerHiddenState;
+    }
+
+    return [updatedGame, token];
+  }
+
+  /**
+   * Make a move in an existing game
+   */
+  public static async move(
+    server: Server,
+    gameId: string,
+    token: string,
+    moveData?: Record<string, any>
+  ): Promise<Game> {
+    let game = await this.populatePlayerHiddenState(
+      server,
+      await this.fetchGame(server, gameId)
+    );
+
+    // Check if the game is running
+    if (game.status !== GameStatus.STARTED) {
+      throw new ServerError('Game is not running', 403);
+    }
+
+    // Find out which player is making the move in this game based on which
+    // token is being used
+    server.options.jsonpadRateLimit &&
+      (await sleep(server.options.jsonpadRateLimit));
+    const playerResults = await server.jsonpad.fetchItems(
+      server.options.jsonpadPlayersList,
+      {
+        limit: 1,
+        game: game.id,
+        token,
+        includeData: true,
+      }
+    );
+
+    if (playerResults.total === 0) {
+      // No player found with this token
+      throw new ServerError('Invalid player token', 403);
+    }
+
+    if (
+      playerResults.data[0].data.gameId !== game.id ||
+      playerResults.data[0].data.token !== token
+    ) {
+      // Game id or token doesn't match
+      throw new ServerError('Invalid player token', 403);
+    }
+
+    // Get the moving player's data from the game
+    const playerId = playerResults.data[0].data.playerId;
+    const player = game.players.find(p => p.id === playerId);
+
+    if (!player) {
+      throw new ServerError('Player not found', 404);
+    }
+
+    // Check if it's the player's turn
+    if (player.status !== PlayerStatus.TAKING_TURN) {
+      throw new ServerError('Not your turn', 403);
+    }
+
+    // Add the move to the game's move log
+    const move = {
+      playerId: player.id,
+      movedAt: new Date(),
+      data: moveData ?? {},
+    };
+    game.moves.push(move);
+    game.lastEventType = 'player-moved';
+    game.lastEventData = null;
+
+    // Cache all player hidden states so we can check later if they've changed
+    const originalPlayerHiddenStates = this.getPlayerHiddenStateMap(game);
+
+    // Call move hook if one is defined
+    game = (await server.options.hooks?.move?.(game, player, move)) ?? game;
+
+    // Check if the game has been finished in this move
+    if (game.status === GameStatus.FINISHED) {
+      game = await this.finishGame(server, game, false);
+    } else {
+      game = await this.advanceGame(server, game, player);
+    }
+
+    // Save the game in jsonpad
+    const updatedGame = await this.persistGame(
+      server,
+      game,
+      {
+        lastEventData: {
+          ...move,
+          ...(game.lastEventData ?? {}),
+        },
+      },
+      originalPlayerHiddenStates,
+      player.id
+    );
+
+    return updatedGame;
+  }
+
+  /**
+   * Fetch a game with a player's hidden state attached
+   */
+  public static async state(
+    server: Server,
+    gameId: string,
+    token: string
+  ): Promise<Game> {
+    const game = await this.populatePlayerHiddenState(
+      server,
+      await this.fetchGame(server, gameId)
+    );
+
+    // Find out which player is requesting their state in this game based on the token
+    server.options.jsonpadRateLimit &&
+      (await sleep(server.options.jsonpadRateLimit));
+    const playerResults = await server.jsonpad.fetchItems(
+      server.options.jsonpadPlayersList,
+      {
+        limit: 1,
+        game: game.id,
+        token,
+        includeData: true,
+      }
+    );
+
+    if (playerResults.total === 0) {
+      // No player found with this token
+      throw new ServerError('Invalid player token', 403);
+    }
+
+    if (
+      playerResults.data[0].data.gameId !== game.id ||
+      playerResults.data[0].data.token !== token
+    ) {
+      // Game id or token doesn't match
+      throw new ServerError('Invalid player token', 403);
+    }
+
+    // Get the player's data from the game
+    const playerId = playerResults.data[0].data.playerId;
+    const player = game.players.find(p => p.id === playerId);
+
+    if (!player) {
+      throw new ServerError('Player not found', 404);
+    }
+
+    player.hiddenState = playerResults.data[0].data.state;
+
+    return game;
+  }
+
+  /**
    * Convert a game to serialisable data
    */
-  public static gameToData(game: Game): Record<string, any> {
+  private static gameToData(game: Game): Record<string, any> {
     const data: Record<string, any> = {
       ...exclude(game, 'id'),
       moves: game.moves.map(move => ({
@@ -60,7 +471,7 @@ export default class GameService {
   /**
    * Convert serialised data to a game
    */
-  public static dataToGame(id: string, data: Record<string, any>): Game {
+  private static dataToGame(id: string, data: Record<string, any>): Game {
     const game: Game = {
       id,
       ...data,
@@ -250,235 +661,53 @@ export default class GameService {
   }
 
   /**
-   * Create a new game with the specified player as Player 1
+   * Calculate the actual joinTimeout / turnTimeout / roundTimeout / gameTimeout
+   * for a game based on the server configuration and the value optionally
+   * specified by the host player when creating a new game session
    */
-  public static async createGame(
-    server: Server,
-    playerName: string,
-    playerData?: Record<string, any>,
-    gameData?: Record<string, any>,
-    numPlayers?: number
-  ): Promise<[Game, string]> {
-    // Prepare public player data for the new player
-    const player = {
-      id: uuid(),
-      name: playerName || 'Player 1',
-      status: PlayerStatus.WAITING_FOR_TURN,
-      state: playerData ?? {},
-    };
-
-    // Calculate how many players are required for this game session
-    const actualNumPlayers = clamp(
-      numPlayers || server.options.minPlayers,
-      server.options.minPlayers,
-      server.options.maxPlayers
-    );
-
-    // Create initial game data
-    let game: Game = {
-      id: '',
-      status: GameStatus.WAITING_TO_START,
-      startedAt: null,
-      finishedAt: null,
-      lastEventType: 'game-created',
-      lastEventData: null,
-      numPlayers: actualNumPlayers,
-      players: [player],
-      moves: [],
-      round: 0,
-      state: gameData ?? {},
-    };
-
-    // Call createGame hook if one is defined
-    game = (await server.options.hooks?.createGame?.(game, player)) ?? game;
-
-    // Extract hidden state
-    let hiddenState: any = undefined;
-    if (game.players[0].hiddenState) {
-      hiddenState = game.players[0].hiddenState;
-      delete game.players[0].hiddenState;
+  private static calculateTimeLimitSetting(
+    value: number | undefined,
+    setting: number | null | TimeLimitSettings
+  ): number | null {
+    // The server is configured with null for this time limit, so it is disabled
+    // and not configurable on a per-game basis
+    if (setting === null) {
+      return null;
     }
 
-    // If a join time limit is defined, set a startsAt time
-    let timeLimit = 0;
-    let startsAt: Date | undefined = undefined;
-    if (server.options.joinTimeLimit) {
-      timeLimit = Math.max(
-        server.options.joinTimeLimit * constants.MS,
-        constants.MIN_TIMEOUT
-      );
-      startsAt = new Date(Date.now() + timeLimit);
-      game.startsAt = startsAt;
+    // The server is configured with a fixed number for this time limit, so use
+    // the configured value (it is not configurable on a per-game basis)
+    if (typeof setting === 'number') {
+      return setting;
     }
 
-    // Save the game in jsonpad
-    server.options.jsonpadRateLimit &&
-      (await sleep(server.options.jsonpadRateLimit));
-    const createdGameItem = await server.jsonpad.createItem(
-      server.options.jsonpadGamesList,
-      {
-        data: this.gameToData(game),
-      }
-    );
+    // Otherwise, the server is configured with a TimeLimitSettings object
 
-    // Save player data in jsonpad
-    const token = generateToken();
-    server.options.jsonpadRateLimit &&
-      (await sleep(server.options.jsonpadRateLimit));
-    await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
-      data: {
-        playerId: player.id,
-        gameId: createdGameItem.id,
-        token,
-        state: hiddenState ?? {},
-      },
-    });
-
-    // If a join time limit is defined, set a timeout for the game to start
-    // automatically if there are enough players
-    if (server.options.joinTimeLimit) {
-      SchedulerService.schedule(
-        createdGameItem.id,
-        '',
-        'join-timeout',
-        async () => {
-          // Fetch the current game with player hidden state attached
-          const currentGame = await this.populatePlayerHiddenState(
-            server,
-            await this.fetchGame(server, createdGameItem.id)
-          );
-
-          // Handle an edge case where the game has already started
-          if (currentGame.status !== GameStatus.WAITING_TO_START) {
-            return;
-          }
-
-          // If we've got enough players to automatically start the game, then
-          // start the game immediately
-          const originalPlayerHiddenStates = this.getPlayerHiddenStateMap(game);
-          if (currentGame.players.length >= server.options.minPlayers) {
-            currentGame.numPlayers = currentGame.players.length;
-
-            const updatedGame = await this.startGame(server, currentGame);
-
-            await this.persistGame(
-              server,
-              updatedGame,
-              {},
-              originalPlayerHiddenStates
-            );
-          }
-        },
-        timeLimit
-      );
-    }
-
-    // Re-insert hidden state for the host player into the response
-    const result = this.dataToGame(createdGameItem.id, createdGameItem.data);
-    result.players[0].hiddenState = hiddenState;
-
-    return [result, token];
-  }
-
-  /**
-   * Join an existing game as Player 2+
-   */
-  public static async joinGame(
-    server: Server,
-    gameId: string,
-    playerName: string,
-    playerData?: Record<string, any>
-  ): Promise<[Game, string]> {
-    let game = await this.populatePlayerHiddenState(
-      server,
-      await this.fetchGame(server, gameId)
-    );
-
-    // Check if we've already reached the maximum number of players
-    if (game.players.length >= game.numPlayers) {
-      throw new ServerError('Game is full', 403);
-    }
-
-    // Check if the game has already started
-    if (game.status !== GameStatus.WAITING_TO_START) {
-      throw new ServerError('Game has already started', 403);
-    }
-
-    // Prepare public player data for the joining player
-    const player = {
-      id: uuid(),
-      name: playerName || `Player ${game.players.length + 1}`,
-      status: PlayerStatus.WAITING_FOR_TURN,
-      state: playerData ?? {},
-    };
-
-    // Add player to the game
-    game.players.push(player);
-
-    // Fetch all player hidden states so we can check later if they've changed
-    const originalPlayerHiddenStates = this.getPlayerHiddenStateMap(game);
-
-    // Call joinGame hook if one is defined
-    game = (await server.options.hooks?.joinGame?.(game, player)) ?? game;
-
-    // If we've got enough players, start the game
-    if (game.players.length >= game.numPlayers) {
-      await this.startGame(server, game);
-
-      // Otherwise, if the game has a join timeout which has passed and we've
-      // got at least the minimum number of players, then we should start the
-      // game immediately
-    } else if (
-      server.options.joinTimeLimit &&
-      game.startsAt &&
-      game.startsAt < new Date() &&
-      game.players.length >= server.options.minPlayers
+    // Make sure the default value is valid
+    if (
+      setting.default === null ||
+      setting.default === undefined ||
+      isNaN(+setting.default)
     ) {
-      game.numPlayers = game.players.length;
-
-      await this.startGame(server, game);
+      throw new ServerError('Invalid time limit setting', 500);
     }
 
-    // Store the joining player's hidden state
-    const joiningPlayerHiddenState = game.players.find(
-      p => p.id === player.id
-    )?.hiddenState;
+    // If a (non-zero) value has been specified by the host player when creating
+    // a new game session, we should use that value (clamped between min and max)
+    if (value) {
+      const min = Math.max(0, setting.min ?? 0);
+      const max = setting.max ?? constants.MAX_TIME_LIMIT;
 
-    // Save the game in jsonpad
-    const updatedGame = await this.persistGame(
-      server,
-      game,
-      {
-        lastEventType: 'player-joined',
-        lastEventData: player,
-      },
-      originalPlayerHiddenStates,
-      undefined,
-      player.id
-    );
+      const clamped = clamp(value, min, max);
+      if (clamped === 0) {
+        return null; // A time limit of 0 implicitly means no time limit
+      }
 
-    // Save joining player data in jsonpad
-    const token = generateToken();
-    server.options.jsonpadRateLimit &&
-      (await sleep(server.options.jsonpadRateLimit));
-    await server.jsonpad.createItem(server.options.jsonpadPlayersList, {
-      data: {
-        playerId: player.id,
-        gameId: updatedGame.id,
-        token,
-        state: joiningPlayerHiddenState ?? {},
-      },
-    });
-
-    // Re-insert hidden state for the joining player into the response
-    // (because we created the joining player above, their hidden state won't be
-    // automatically inserted by persistGame(), so we should do it manually here)
-    const joiningPlayer = updatedGame.players.find(p => p.id === player.id);
-    if (joiningPlayer && joiningPlayerHiddenState) {
-      joiningPlayer.hiddenState = joiningPlayerHiddenState;
+      return clamped;
     }
 
-    return [updatedGame, token];
+    // Otherwise, use the default value
+    return setting.default;
   }
 
   /**
@@ -504,9 +733,9 @@ export default class GameService {
         firstPlayer.status = PlayerStatus.TAKING_TURN;
 
         // If a turn time limit is defined, set a timeout for the current player
-        if (server.options.turnTimeLimit) {
+        if (game.turnTimeLimit) {
           const timeLimit = Math.max(
-            server.options.turnTimeLimit * constants.MS,
+            game.turnTimeLimit * constants.MS,
             constants.MIN_TIMEOUT
           );
 
@@ -556,9 +785,9 @@ export default class GameService {
         });
 
         // If a round time limit is defined, set a timeout for the current round
-        if (server.options.roundTimeLimit) {
+        if (game.roundTimeLimit) {
           const timeLimit = Math.max(
-            server.options.roundTimeLimit * constants.MS,
+            game.roundTimeLimit * constants.MS,
             constants.MIN_TIMEOUT
           );
 
@@ -609,9 +838,9 @@ export default class GameService {
     }
 
     // If a game time limit is defined, set a timeout for the game
-    if (server.options.gameTimeLimit) {
+    if (game.gameTimeLimit) {
       const timeLimit = Math.max(
-        server.options.gameTimeLimit * constants.MS,
+        game.gameTimeLimit * constants.MS,
         constants.MIN_TIMEOUT
       );
 
@@ -650,105 +879,6 @@ export default class GameService {
     }
 
     return game;
-  }
-
-  /**
-   * Make a move in an existing game
-   */
-  public static async move(
-    server: Server,
-    gameId: string,
-    token: string,
-    moveData?: Record<string, any>
-  ): Promise<Game> {
-    let game = await this.populatePlayerHiddenState(
-      server,
-      await this.fetchGame(server, gameId)
-    );
-
-    // Check if the game is running
-    if (game.status !== GameStatus.STARTED) {
-      throw new ServerError('Game is not running', 403);
-    }
-
-    // Find out which player is making the move in this game based on which
-    // token is being used
-    server.options.jsonpadRateLimit &&
-      (await sleep(server.options.jsonpadRateLimit));
-    const playerResults = await server.jsonpad.fetchItems(
-      server.options.jsonpadPlayersList,
-      {
-        limit: 1,
-        game: game.id,
-        token,
-        includeData: true,
-      }
-    );
-
-    if (playerResults.total === 0) {
-      // No player found with this token
-      throw new ServerError('Invalid player token', 403);
-    }
-
-    if (
-      playerResults.data[0].data.gameId !== game.id ||
-      playerResults.data[0].data.token !== token
-    ) {
-      // Game id or token doesn't match
-      throw new ServerError('Invalid player token', 403);
-    }
-
-    // Get the moving player's data from the game
-    const playerId = playerResults.data[0].data.playerId;
-    const player = game.players.find(p => p.id === playerId);
-
-    if (!player) {
-      throw new ServerError('Player not found', 404);
-    }
-
-    // Check if it's the player's turn
-    if (player.status !== PlayerStatus.TAKING_TURN) {
-      throw new ServerError('Not your turn', 403);
-    }
-
-    // Add the move to the game's move log
-    const move = {
-      playerId: player.id,
-      movedAt: new Date(),
-      data: moveData ?? {},
-    };
-    game.moves.push(move);
-    game.lastEventType = 'player-moved';
-    game.lastEventData = null;
-
-    // Cache all player hidden states so we can check later if they've changed
-    const originalPlayerHiddenStates = this.getPlayerHiddenStateMap(game);
-
-    // Call move hook if one is defined
-    game = (await server.options.hooks?.move?.(game, player, move)) ?? game;
-
-    // Check if the game has been finished in this move
-    if (game.status === GameStatus.FINISHED) {
-      game = await this.finishGame(server, game, false);
-    } else {
-      game = await this.advanceGame(server, game, player);
-    }
-
-    // Save the game in jsonpad
-    const updatedGame = await this.persistGame(
-      server,
-      game,
-      {
-        lastEventData: {
-          ...move,
-          ...(game.lastEventData ?? {}),
-        },
-      },
-      originalPlayerHiddenStates,
-      player.id
-    );
-
-    return updatedGame;
   }
 
   /**
@@ -809,9 +939,9 @@ export default class GameService {
 
         // If a turn time limit is defined, set a timeout for the next player
         // to move
-        if (server.options.turnTimeLimit) {
+        if (game.turnTimeLimit) {
           const timeLimit = Math.max(
-            server.options.turnTimeLimit * constants.MS,
+            game.turnTimeLimit * constants.MS,
             constants.MIN_TIMEOUT
           );
 
@@ -886,9 +1016,9 @@ export default class GameService {
           });
 
           // If a round time limit is defined, set a timeout for the current round
-          if (server.options.roundTimeLimit) {
+          if (game.roundTimeLimit) {
             const timeLimit = Math.max(
-              server.options.roundTimeLimit * constants.MS,
+              game.roundTimeLimit * constants.MS,
               constants.MIN_TIMEOUT
             );
 
@@ -983,58 +1113,6 @@ export default class GameService {
         originalPlayerHiddenStates
       );
     }
-
-    return game;
-  }
-
-  /**
-   * Fetch a game with a player's hidden state attached
-   */
-  public static async state(
-    server: Server,
-    gameId: string,
-    token: string
-  ): Promise<Game> {
-    const game = await this.populatePlayerHiddenState(
-      server,
-      await this.fetchGame(server, gameId)
-    );
-
-    // Find out which player is requesting their state in this game based on the token
-    server.options.jsonpadRateLimit &&
-      (await sleep(server.options.jsonpadRateLimit));
-    const playerResults = await server.jsonpad.fetchItems(
-      server.options.jsonpadPlayersList,
-      {
-        limit: 1,
-        game: game.id,
-        token,
-        includeData: true,
-      }
-    );
-
-    if (playerResults.total === 0) {
-      // No player found with this token
-      throw new ServerError('Invalid player token', 403);
-    }
-
-    if (
-      playerResults.data[0].data.gameId !== game.id ||
-      playerResults.data[0].data.token !== token
-    ) {
-      // Game id or token doesn't match
-      throw new ServerError('Invalid player token', 403);
-    }
-
-    // Get the player's data from the game
-    const playerId = playerResults.data[0].data.playerId;
-    const player = game.players.find(p => p.id === playerId);
-
-    if (!player) {
-      throw new ServerError('Player not found', 404);
-    }
-
-    player.hiddenState = playerResults.data[0].data.state;
 
     return game;
   }

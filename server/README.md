@@ -50,21 +50,6 @@ const server = new AsobiServer({
   jsonpadRateLimit: 150,
 
   /**
-   * The minimum number of players in each game
-   *
-   * By default, once a game has this many players it will start
-   *
-   * However when a game is created we can pass in the number of players for
-   * that particular game session (it must be between minPlayers and maxPlayers)
-   */
-  minPlayers: 2,
-
-  /**
-   * The maximum number of players in each game
-   */
-  maxPlayers: 2,
-
-  /**
    * In "turns" mode, each player takes a turn in the order that they joined the game
    *
    * Once all players have played their turn, the game advances to the next round
@@ -86,6 +71,25 @@ const server = new AsobiServer({
   // mode: 'free',
 
   /**
+   * The minimum number of players in each game
+   *
+   * By default, once a game has this many players it will start
+   *
+   * However when a game is created we can pass in the number of players for
+   * that particular game session (it must be between minPlayers and maxPlayers)
+   *
+   * Default is 2
+   */
+  minPlayers: 2,
+
+  /**
+   * The maximum number of players in each game
+   *
+   * Default is 2
+   */
+  maxPlayers: 2,
+
+  /**
    * Time limit (in seconds) for joining a game
    *
    * The game will start as soon as:
@@ -93,7 +97,21 @@ const server = new AsobiServer({
    * - the maximum number of players have joined
    * - the minimum number of players have joined (if the time limit has been reached)
    *
-   * Set this to null to disable the join time limit
+   * Set this to a number to force all games to use this join time limit (it will
+   * not be configurable per game)
+   *
+   * Set this to null to force-disable the join time limit (it will not be
+   * configurable per game, and all games will not have a join time limit)
+   *
+   * Alternatively, set this to an object like:
+   *
+   * ```
+   * {
+   *   "default": number, // the default time limit in seconds
+   *   "min": number | null, // the minimum time limit in seconds
+   *   "max": number | null, // the maximum time limit in seconds
+   * }
+   * ```
    */
   joinTimeLimit: null,
 
@@ -104,7 +122,7 @@ const server = new AsobiServer({
    *
    * Only used in "turns" mode
    *
-   * Set this to null to disable turn time limits
+   * This can be a number, null, or an object (see joinTimeLimit for details)
    */
   turnTimeLimit: null,
 
@@ -116,7 +134,7 @@ const server = new AsobiServer({
    *
    * Only used in "rounds" mode
    *
-   * Set this to null to disable round time limits
+   * This can be a number, null, or an object (see joinTimeLimit for details)
    */
   roundTimeLimit: null,
 
@@ -126,7 +144,7 @@ const server = new AsobiServer({
    * If the game hasn't finished within this time limit, the gameFinished hook is
    * called automatically when this time has elapsed
    *
-   * Set this to null to disable game time limits
+   * This can be a number, null, or an object (see joinTimeLimit for details)
    */
   gameTimeLimit: null,
 

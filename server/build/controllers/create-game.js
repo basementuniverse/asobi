@@ -8,7 +8,7 @@ const jsonschema_1 = require("jsonschema");
 const error_1 = __importDefault(require("../error"));
 const game_service_1 = __importDefault(require("../services/game-service"));
 async function createGame(server, request, response) {
-    const { playerName, playerData, gameData, numPlayers } = request.body;
+    const { playerName, playerData, gameData } = request.body;
     // Validate player data
     if (playerData && server.options.playerSchema) {
         const { valid, errors } = (0, jsonschema_1.validate)(playerData, server.options.playerSchema);
@@ -25,7 +25,7 @@ async function createGame(server, request, response) {
                 .join(', ')})`, 400);
         }
     }
-    const [game, token] = await game_service_1.default.createGame(server, playerName, playerData, gameData, numPlayers);
+    const [game, token] = await game_service_1.default.createGame(server, playerName, playerData, gameData);
     response.status(201).json({ game, token });
 }
 //# sourceMappingURL=create-game.js.map

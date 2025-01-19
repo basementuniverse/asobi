@@ -163,8 +163,7 @@ export class Client extends EventTarget {
   public async createGame(
     playerName: string,
     playerData?: Record<string, any>,
-    gameData?: Record<string, any>,
-    numPlayers?: number
+    gameData?: Record<string, any>
   ): Promise<[Game, string]> {
     const response = await fetch(`${this.options.asobiServerUrl}/create-game`, {
       method: 'POST',
@@ -175,7 +174,6 @@ export class Client extends EventTarget {
         playerName,
         playerData,
         gameData,
-        numPlayers,
       }),
     });
 

@@ -108,7 +108,8 @@ const server = new AsobiServer({
   jsonpadServerToken: JSONPAD_SERVER_TOKEN,
   jsonpadGamesList: JSONPAD_GAMES_LIST,
   jsonpadPlayersList: JSONPAD_PLAYERS_LIST,
-  jsonpadRateLimit: null,
+  minPlayers: 2,
+  maxPlayers: 4,
   hooks: {
     createGame: async (game, player) => {
       player.hiddenState = {

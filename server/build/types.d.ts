@@ -4,13 +4,13 @@ export type ServerOptions = {
     jsonpadGamesList: string;
     jsonpadPlayersList: string;
     jsonpadRateLimit: number | null;
+    mode: GameMode;
     minPlayers: number;
     maxPlayers: number;
-    mode: GameMode;
-    joinTimeLimit: number | null;
-    turnTimeLimit: number | null;
-    roundTimeLimit: number | null;
-    gameTimeLimit: number | null;
+    joinTimeLimit: number | TimeLimitSettings | null;
+    turnTimeLimit: number | TimeLimitSettings | null;
+    roundTimeLimit: number | TimeLimitSettings | null;
+    gameTimeLimit: number | TimeLimitSettings | null;
     gameSchema: any;
     playerSchema: any;
     moveSchema: any;
@@ -59,6 +59,10 @@ export type Game = {
     lastEventType: 'game-created' | 'player-joined' | 'player-moved' | 'timed-out' | 'game-finished';
     lastEventData: any;
     numPlayers: number;
+    joinTimeLimit: number | null;
+    turnTimeLimit: number | null;
+    roundTimeLimit: number | null;
+    gameTimeLimit: number | null;
     players: Player[];
     moves: Move[];
     round: number;
@@ -76,4 +80,9 @@ export type SerialisedGame = Omit<Game, 'id' | 'startedAt' | 'finishedAt' | 'sta
     finishesAt?: string | null;
     turnFinishesAt?: string | null;
     roundFinishesAt?: string | null;
+};
+export type TimeLimitSettings = {
+    default: number;
+    min: number | null;
+    max: number | null;
 };

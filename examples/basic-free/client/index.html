@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Basic Example (Mode: Rounds)</title>
-<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client@1.9.0/build/client.js"></script>
+<title>Basic Example (Mode: Free)</title>
+<script src="https://cdn.jsdelivr.net/npm/@basementuniverse/asobi-client/build/client.js"></script>
 <script>
 
 const GAMES = [];
@@ -126,7 +126,7 @@ client.addEventListener('timed-out', event => {
     This is a game for 4 to 6 players. Each game has a random target number. Players can take turns at any time, making guesses. The first player to guess the correct number wins the game.
   </p>
   <h2>Examples</h2>
-  <p>Start a new game:</p>
+  <p>Start a new game with 4 players:</p>
   <code>createGame(4)</code>
   <p>Join the game we just created:</p>
   <code>joinGame(GAMES[0].id)</code>

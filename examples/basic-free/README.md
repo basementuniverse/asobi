@@ -1,10 +1,10 @@
 # Basic Game Example (Mode: Free)
 
-4 player game where each players take turns (in any order and at any time) guessing a number. The first player to guess correctly wins.
+4 to 6 player game where players take turns (in any order and at any time) guessing a number. The first player to guess correctly wins.
 
 ## Setup
 
-See [jsonpad-schema.md](../jsonpad-schema.md) for instructions on setting up JSONPad.
+See [jsonpad.md](../jsonpad.md) for instructions on setting up JSONPad.
 
 Install server dependencies:
 
