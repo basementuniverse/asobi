@@ -10,7 +10,7 @@ npm install @basementuniverse/asobi-server
 
 ## Setup
 
-See [jsonpad-schema.md](../examples/jsonpad-schema.md) for instructions on setting up JSONPad.
+See [jsonpad.md](../examples/jsonpad.md) for instructions on setting up JSONPad.
 
 ## Usage
 
