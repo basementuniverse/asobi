@@ -507,10 +507,10 @@ class GameService {
         }
         // If a (non-zero) value has been specified by the host player when creating
         // a new game session, we should use that value (clamped between min and max)
-        if (value) {
+        if (value !== undefined) {
             const min = Math.max(0, (_a = setting.min) !== null && _a !== void 0 ? _a : 0);
             const max = (_b = setting.max) !== null && _b !== void 0 ? _b : constants.MAX_TIME_LIMIT;
-            const clamped = (0, utils_1.clamp)(value, min, max);
+            const clamped = (0, utils_1.clamp)(value || 0, min, max);
             if (clamped === 0) {
                 return null; // A time limit of 0 implicitly means no time limit
             }

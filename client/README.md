@@ -187,3 +187,5 @@ const [game, myToken] = await client.createGame(
   }
 );
 ```
+
+Use `0` or `null` for no time limit. Omit the property to use the server's default time limit.

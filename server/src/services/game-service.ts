@@ -666,7 +666,7 @@ export default class GameService {
    * specified by the host player when creating a new game session
    */
   private static calculateTimeLimitSetting(
-    value: number | undefined,
+    value: number | null | undefined,
     setting: number | null | TimeLimitSettings
   ): number | null {
     // The server is configured with null for this time limit, so it is disabled
@@ -694,11 +694,11 @@ export default class GameService {
 
     // If a (non-zero) value has been specified by the host player when creating
     // a new game session, we should use that value (clamped between min and max)
-    if (value) {
+    if (value !== undefined) {
       const min = Math.max(0, setting.min ?? 0);
       const max = setting.max ?? constants.MAX_TIME_LIMIT;
 
-      const clamped = clamp(value, min, max);
+      const clamped = clamp(value || 0, min, max);
       if (clamped === 0) {
         return null; // A time limit of 0 implicitly means no time limit
       }
