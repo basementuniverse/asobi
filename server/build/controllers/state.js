@@ -38,16 +38,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.state = state;
 const constants = __importStar(require("../constants"));
-const error_1 = __importDefault(require("../error"));
+const error_1 = require("../error");
 const game_service_1 = __importDefault(require("../services/game-service"));
 async function state(server, request, response) {
     let token = request.headers['authorization'];
     const gameId = request.params.gameId;
     if (!gameId) {
-        throw new error_1.default('Game id is required', 400);
+        throw new error_1.ServerError('Game id is required', 400);
     }
     if (!token) {
-        throw new error_1.default('Token is required', 400);
+        throw new error_1.ServerError('Token is required', 400);
     }
     if (token.startsWith(constants.TOKEN_PREFIX)) {
         token = token.slice(constants.TOKEN_PREFIX.length);

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import * as constants from '../constants';
-import ServerError from '../error';
+import { ServerError } from '../error';
 import { Server } from '../server';
 import GameService from '../services/game-service';
 

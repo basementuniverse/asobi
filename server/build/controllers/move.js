@@ -39,7 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.move = move;
 const jsonschema_1 = require("jsonschema");
 const constants = __importStar(require("../constants"));
-const error_1 = __importDefault(require("../error"));
+const error_1 = require("../error");
 const game_service_1 = __importDefault(require("../services/game-service"));
 const queue_service_1 = __importDefault(require("../services/queue-service"));
 async function move(server, request, response) {
@@ -47,10 +47,10 @@ async function move(server, request, response) {
     const gameId = request.params.gameId;
     const { moveData } = request.body;
     if (!gameId) {
-        throw new error_1.default('Game id is required', 400);
+        throw new error_1.ServerError('Game id is required', 400);
     }
     if (!token) {
-        throw new error_1.default('Token is required', 400);
+        throw new error_1.ServerError('Token is required', 400);
     }
     if (token.startsWith(constants.TOKEN_PREFIX)) {
         token = token.slice(constants.TOKEN_PREFIX.length);
@@ -59,7 +59,7 @@ async function move(server, request, response) {
     if (moveData && server.options.moveSchema) {
         const { valid, errors } = (0, jsonschema_1.validate)(moveData, server.options.moveSchema);
         if (!valid) {
-            throw new error_1.default(`Validation error (${errors.map(e => e.message).join(', ')})`, 400);
+            throw new error_1.ServerError(`Validation error (${errors.map(e => e.message).join(', ')})`, 400);
         }
     }
     // Handle player moves using a queue to avoid race conditions

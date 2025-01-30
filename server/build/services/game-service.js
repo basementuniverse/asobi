@@ -40,7 +40,7 @@ const async_1 = require("@basementuniverse/async");
 const utils_1 = require("@basementuniverse/utils");
 const uuid_1 = require("uuid");
 const constants = __importStar(require("../constants"));
-const error_1 = __importDefault(require("../error"));
+const error_1 = require("../error");
 const types_1 = require("../types");
 const generate_token_1 = __importDefault(require("../utilities/generate-token"));
 const sleep_1 = __importDefault(require("../utilities/sleep"));
@@ -154,11 +154,11 @@ class GameService {
         let game = await this.populatePlayerHiddenState(server, await this.fetchGame(server, gameId));
         // Check if we've already reached the maximum number of players
         if (game.players.length >= game.numPlayers) {
-            throw new error_1.default('Game is full', 403);
+            throw new error_1.ServerError('Game is full', 403);
         }
         // Check if the game has already started
         if (game.status !== types_1.GameStatus.WAITING_TO_START) {
-            throw new error_1.default('Game has already started', 403);
+            throw new error_1.ServerError('Game has already started', 403);
         }
         // Prepare public player data for the joining player
         const player = {
@@ -223,7 +223,7 @@ class GameService {
         let game = await this.populatePlayerHiddenState(server, await this.fetchGame(server, gameId));
         // Check if the game is running
         if (game.status !== types_1.GameStatus.STARTED) {
-            throw new error_1.default('Game is not running', 403);
+            throw new error_1.ServerError('Game is not running', 403);
         }
         // Find out which player is making the move in this game based on which
         // token is being used
@@ -237,22 +237,22 @@ class GameService {
         });
         if (playerResults.total === 0) {
             // No player found with this token
-            throw new error_1.default('Invalid player token', 403);
+            throw new error_1.ServerError('Invalid player token', 403);
         }
         if (playerResults.data[0].data.gameId !== game.id ||
             playerResults.data[0].data.token !== token) {
             // Game id or token doesn't match
-            throw new error_1.default('Invalid player token', 403);
+            throw new error_1.ServerError('Invalid player token', 403);
         }
         // Get the moving player's data from the game
         const playerId = playerResults.data[0].data.playerId;
         const player = game.players.find(p => p.id === playerId);
         if (!player) {
-            throw new error_1.default('Player not found', 404);
+            throw new error_1.ServerError('Player not found', 404);
         }
         // Check if it's the player's turn
         if (player.status !== types_1.PlayerStatus.TAKING_TURN) {
-            throw new error_1.default('Not your turn', 403);
+            throw new error_1.ServerError('Not your turn', 403);
         }
         // Add the move to the game's move log
         const move = {
@@ -299,18 +299,18 @@ class GameService {
         });
         if (playerResults.total === 0) {
             // No player found with this token
-            throw new error_1.default('Invalid player token', 403);
+            throw new error_1.ServerError('Invalid player token', 403);
         }
         if (playerResults.data[0].data.gameId !== game.id ||
             playerResults.data[0].data.token !== token) {
             // Game id or token doesn't match
-            throw new error_1.default('Invalid player token', 403);
+            throw new error_1.ServerError('Invalid player token', 403);
         }
         // Get the player's data from the game
         const playerId = playerResults.data[0].data.playerId;
         const player = game.players.find(p => p.id === playerId);
         if (!player) {
-            throw new error_1.default('Player not found', 404);
+            throw new error_1.ServerError('Player not found', 404);
         }
         player.hiddenState = playerResults.data[0].data.state;
         return game;
@@ -391,7 +391,7 @@ class GameService {
             (await (0, sleep_1.default)(server.options.jsonpadRateLimit));
         const gameData = await server.jsonpad.fetchItemData(server.options.jsonpadGamesList, gameId);
         if (!gameData) {
-            throw new error_1.default('Game not found', 404);
+            throw new error_1.ServerError('Game not found', 404);
         }
         return this.dataToGame(gameId, gameData);
     }
@@ -503,7 +503,7 @@ class GameService {
         if (setting.default === null ||
             setting.default === undefined ||
             isNaN(+setting.default)) {
-            throw new error_1.default('Invalid time limit setting', 500);
+            throw new error_1.ServerError('Invalid time limit setting', 500);
         }
         // If a (non-zero) value has been specified by the host player when creating
         // a new game session, we should use that value (clamped between min and max)

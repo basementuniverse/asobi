@@ -5,7 +5,7 @@ import 'express-async-errors';
 import http from 'http';
 import * as constants from './constants';
 import * as controllers from './controllers';
-import ServerError from './error';
+import { ServerError } from './error';
 import QueueService from './services/queue-service';
 import { GameMode, ServerOptions } from './types';
 

@@ -43,7 +43,7 @@ const express_1 = __importDefault(require("express"));
 require("express-async-errors");
 const constants = __importStar(require("./constants"));
 const controllers = __importStar(require("./controllers"));
-const error_1 = __importDefault(require("./error"));
+const error_1 = require("./error");
 const queue_service_1 = __importDefault(require("./services/queue-service"));
 const types_1 = require("./types");
 class Server {
@@ -78,7 +78,7 @@ class Server {
         this.api.use((error, request, response, next) => {
             var _a;
             console.error(error);
-            if (error instanceof error_1.default) {
+            if (error instanceof error_1.ServerError) {
                 return response.status((_a = error.status) !== null && _a !== void 0 ? _a : 500).send(error.message);
             }
             return response.status(500).send('Unknown error');

@@ -2,7 +2,7 @@ import { asyncForEach } from '@basementuniverse/async';
 import { clamp, exclude } from '@basementuniverse/utils';
 import { v4 as uuid } from 'uuid';
 import * as constants from '../constants';
-import ServerError from '../error';
+import { ServerError } from '../error';
 import { Server } from '../server';
 import {
   Game,
