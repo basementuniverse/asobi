@@ -367,3 +367,17 @@ If this property is present in the game data when the hook returns, it will be r
 The current player (the player who is starting the game, joining the game, or currently taking their turn) will still be able to see their own hidden state in responses.
 
 Note that all hidden player state will be hidden from event handler parameters, so if you need to access or modify hidden state when handling a realtime event, you will need to re-fetch the game state using the client's `fetchState()` method. This method takes a player token as an argument, which ensures that a player's hidden state can only be viewed by that player.
+
+## Error handling
+
+You can throw `AsobiServerError` inside hooks to return an error to the client.
+
+
+```ts
+import { AsobiServerError } from '@basementuniverse/asobi-server';
+
+throw new ServerError(
+  'Something went wrong...', // error message
+  400 // status code
+);
+```
