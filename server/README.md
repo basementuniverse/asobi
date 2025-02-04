@@ -381,3 +381,142 @@ throw new ServerError(
   400 // status code
 );
 ```
+
+## Endpoints
+
+It is recommended to use the client library to interact with the server, but here are the endpoints that the server exposes in case you want to interact with it directly:
+
+### Create a new game
+
+`POST {SERVER_URL}/create-game`
+
+Request payload:
+
+```jsonc
+{
+  // The first player's name
+  // Optional; if not provided, we will use "Player 1"
+  "playerName": "Player 1",
+
+  // Freeform player data for Player 1
+  "playerData": {},
+
+  // Initial data for the game
+  "gameData": {}
+}
+```
+
+Response payload:
+
+```jsonc
+{
+  // The game object (see Types above)
+  "game": {
+    // ...
+  },
+
+  // An identification token for Player 1
+  // Player 1 should use this token when making moves
+  "token": "..."
+}
+```
+
+### Join an existing game
+
+`POST {SERVER_URL}/join-game/{GAME_ID}`
+
+Request payload:
+
+```jsonc
+{
+  // The player's name
+  // Optional; if not provided, we will use "Player N"
+  // (where N is the next available player index)
+  "playerName": "Player 2",
+
+  // Freeform player data for Player 2
+  "playerData": {}
+}
+```
+
+Response payload:
+
+```jsonc
+{
+  // The game object (see Types above)
+  "game": {
+    // ...
+  },
+
+  // An identification token for the joining player
+  // The joining player should use this token when making moves
+  "token": "..."
+}
+```
+
+### Make a move
+
+`POST {SERVER_URL}/move/{GAME_ID}`
+
+Headers:
+
+```
+Authorization: Bearer {PLAYER_TOKEN}
+```
+
+Request payload:
+
+```jsonc
+{
+  // Freeform move data
+  "moveData": {
+    // ...
+  }
+}
+```
+
+Response payload:
+
+```jsonc
+{
+  // The game object (see Types above)
+  "game": {
+    // ...
+  }
+}
+```
+
+### Fetch game state for a specific player
+
+This endpoint is useful for fetching the current game state with hidden player state attached for the specified player.
+
+`GET {SERVER_URL}/state/{GAME_ID}`
+
+Headers:
+
+```
+Authorization: Bearer {PLAYER_TOKEN}
+```
+
+Response payload:
+
+```jsonc
+{
+  // The game object (see Types above)
+  "game": {
+    // ...
+  }
+}
+```
+
+### Fetch a list of games, or fetch a specific game
+
+The client communicates directly with JSONPad (via the [JSONPad SDK](https://www.npmjs.com/package/@basementuniverse/jsonpad-sdk)) when fetching a list of games or a specific game.
+
+Check out the [JSONPad API documentation](https://jsonpad.io/docs/api-reference) for more information on available endpoints and their parameters.
+
+### Realtime updates
+
+The client uses WebSockets (via the [JSONPad Realtime SDK](https://www.npmjs.com/package/@basementuniverse/jsonpad-realtime-sdk)) to listen for updates to the games list.
+
+Check out the [JSONPad Realtime documentation](https://jsonpad.io/docs/realtime-updates) for more information.

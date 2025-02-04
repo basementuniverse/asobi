@@ -1,6 +1,6 @@
 {
   "name": "@basementuniverse/asobi-server",
-  "version": "1.11.1",
+  "version": "1.11.2",
   "description": "A multiplayer turn-based game server",
   "author": "Gordon Larrigan <gordonlarrigan@gmail.com> (https://gordonlarrigan.com)",
   "license": "MIT",
